@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>סורק מלאי יאמיט</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html { height: 100%; }
+    body {
+      font-family: 'Heebo', sans-serif;
+      background: #f0f4f8;
+      color: #1a2332;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ─── HEADER ──────────────────────────── */
+    .app-header {
+      background: #0f2438; color: white;
+      padding: 14px 20px; display: flex;
+      align-items: center; justify-content: space-between;
+      flex-shrink: 0;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.25); z-index: 10;
+    }
+    .header-logo { font-size: 18px; font-weight: 700; color: #00d4aa; }
+    .header-logo span { color: rgba(255,255,255,0.65); font-weight: 400; font-size: 14px; }
+    .icon-btn {
+      background: none; border: none; color: rgba(255,255,255,0.75);
+      font-size: 22px; cursor: pointer; padding: 5px; border-radius: 8px;
+    }
+    .icon-btn:active { background: rgba(255,255,255,0.12); }
+
+    /* ─── SCREENS ─────────────────────────── */
+    .screen { display: none; flex: 1; overflow: hidden; }
+    .screen.active { display: flex; flex-direction: column; }
+    #setupScreen { overflow-y: auto; align-items: center; justify-content: flex-start; padding: 32px 20px 40px; }
+
+    /* ─── SETUP ───────────────────────────── */
+    .setup-card {
+      background: white; border-radius: 20px; padding: 32px 24px;
+      width: 100%; max-width: 440px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .setup-icon { text-align: center; font-size: 52px; margin-bottom: 16px; }
+    .setup-title { text-align: center; font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .setup-sub { text-align: center; font-size: 14px; color: #6b7280; margin-bottom: 28px; }
+
+    .field-label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    .text-input {
+      width: 100%; padding: 12px 14px;
+      border: 1.5px solid #d1d5db; border-radius: 10px;
+      font-family: 'Heebo', sans-serif; font-size: 14px;
+      outline: none; transition: border-color 0.2s;
+      direction: ltr; text-align: left; background: white; color: #1a2332;
+    }
+    .text-input:focus { border-color: #00d4aa; }
+    .text-input[dir="rtl"] { direction: rtl; text-align: right; }
+
+    .btn { display: block; width: 100%; padding: 13px; margin-top: 10px; border-radius: 10px; font-family: 'Heebo', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; border: none; transition: opacity 0.15s, transform 0.1s; }
+    .btn:active { opacity: 0.82; transform: scale(0.98); }
+    .btn-primary { background: #00d4aa; color: #0f2438; font-size: 16px; }
+    .btn-secondary { background: #f9fafb; color: #374151; border: 1.5px dashed #d1d5db; }
+    .btn-secondary:active { background: #f3f4f6; }
+    .btn-ghost { background: #f3f4f6; color: #374151; }
+    .btn-ghost:active { background: #e5e7eb; }
+    .btn-danger { background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; }
+    .btn-danger:active { background: #fee2e2; }
+
+    .divider { display: flex; align-items: center; gap: 12px; margin: 22px 0; color: #9ca3af; font-size: 13px; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
+
+    .error-box {
+      display: none; margin-top: 14px; padding: 11px 14px;
+      background: #fef2f2; color: #dc2626;
+      border: 1px solid #fecaca; border-radius: 10px; font-size: 14px;
+    }
+    .error-box.on { display: block; }
+
+    /* ─── MAIN SCREEN ─────────────────────── */
+    .stats-bar {
+      background: white; border-bottom: 1px solid #e5e7eb;
+      padding: 8px 20px; font-size: 13px; color: #6b7280;
+      display: flex; gap: 20px; flex-shrink: 0;
+    }
+    .stats-bar strong { color: #1a2332; }
+
+    .search-row { padding: 14px 16px 8px; display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+    .search-wrap { position: relative; flex: 1; }
+    .search-input {
+      width: 100%; padding: 12px 42px 12px 14px;
+      border: 1.5px solid #d1d5db; border-radius: 12px;
+      font-family: 'Heebo', sans-serif; font-size: 16px;
+      background: white; outline: none; color: #1a2332;
+      transition: border-color 0.2s; direction: rtl;
+    }
+    .search-input:focus { border-color: #00d4aa; }
+    .s-icon { position: absolute; right: 13px; top: 50%; transform: translateY(-50%); font-size: 17px; pointer-events: none; }
+    .clear-btn {
+      position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+      background: #e5e7eb; border: none; width: 22px; height: 22px;
+      border-radius: 50%; font-size: 11px; cursor: pointer; color: #6b7280;
+      display: none; align-items: center; justify-content: center;
+    }
+    .clear-btn.on { display: flex; }
+
+    .cam-btn {
+      background: #00d4aa; border: none; width: 48px; height: 48px;
+      border-radius: 12px; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 10px rgba(0,212,170,0.3); transition: opacity 0.15s;
+    }
+    .cam-btn:active { opacity: 0.8; }
+
+    .results-area { flex: 1; overflow-y: auto; padding: 6px 16px 32px; -webkit-overflow-scrolling: touch; }
+
+    .res-count { font-size: 13px; color: #9ca3af; text-align: center; padding: 8px 0 12px; }
+
+    .product-card {
+      background: white; border: 1.5px solid #e5e7eb; border-radius: 14px;
+      padding: 14px 16px; margin-bottom: 10px; cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      animation: slideUp 0.18s ease both;
+    }
+    .product-card:active { border-color: #00d4aa; box-shadow: 0 0 0 3px rgba(0,212,170,0.12); }
+    @keyframes slideUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+    .pc-name { font-size: 15px; font-weight: 600; margin-bottom: 7px; line-height: 1.35; }
+    .pc-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .pc-sku { font-size: 12px; color: #9ca3af; font-family: monospace; }
+
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+    .badge-pos  { background: #dcfce7; color: #16a34a; }
+    .badge-zero { background: #f3f4f6; color: #6b7280; }
+    .badge-neg  { background: #fef2f2; color: #dc2626; }
+    .bdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .badge-pos  .bdot { background: #22c55e; }
+    .badge-zero .bdot { background: #9ca3af; }
+    .badge-neg  .bdot { background: #ef4444; }
+
+    .empty { text-align: center; padding: 60px 20px; color: #9ca3af; animation: slideUp 0.2s ease; }
+    .empty-icon { font-size: 48px; margin-bottom: 14px; }
+    .empty h3 { font-size: 17px; font-weight: 600; color: #6b7280; margin-bottom: 8px; }
+    .empty p  { font-size: 14px; line-height: 1.6; }
+
+    /* ─── CAMERA ──────────────────────────── */
+    #camOverlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.92); z-index: 300;
+      flex-direction: column; align-items: center; justify-content: center;
+    }
+    #camOverlay.open { display: flex; }
+    .cam-inner { position: relative; width: 100%; max-width: 500px; }
+    #video { width: 100%; display: block; }
+    .scan-frame { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+    .frame-box { width: 240px; height: 158px; position: relative; }
+    .frame-box::before, .frame-box::after,
+    .frame-box > i::before, .frame-box > i::after {
+      content: ''; position: absolute; width: 28px; height: 28px;
+      border-color: #00d4aa; border-style: solid;
+    }
+    .frame-box::before  { top:0; right:0; border-width:3px 3px 0 0; border-radius:0 6px 0 0; }
+    .frame-box::after   { top:0; left:0;  border-width:3px 0 0 3px; border-radius:6px 0 0 0; }
+    .frame-box > i::before { bottom:0; right:0; border-width:0 3px 3px 0; border-radius:0 0 6px 0; }
+    .frame-box > i::after  { bottom:0; left:0;  border-width:0 0 3px 3px; border-radius:0 0 0 6px; }
+    .scan-line { position: absolute; left:8px; right:8px; height:2px; background:#00d4aa; box-shadow:0 0 8px #00d4aa; animation: sweep 2s ease-in-out infinite; }
+    @keyframes sweep { 0%,100%{top:8px} 50%{top:calc(100% - 10px)} }
+    .cam-hint { color: rgba(255,255,255,0.5); font-size: 14px; margin-top: 24px; text-align: center; }
+    .cam-close { margin-top: 22px; padding: 12px 44px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; font-family: 'Heebo', sans-serif; font-size: 15px; border-radius: 50px; cursor: pointer; }
+    .cam-flash { position: absolute; inset: 0; background: rgba(0,212,170,0.22); display: none; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: #00d4aa; }
+    .cam-flash.on { display: flex; }
+
+    /* ─── MODALS ──────────────────────────── */
+    .backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: flex-end; justify-content: center; }
+    .backdrop.open { display: flex; }
+    .sheet { background: white; border-radius: 20px 20px 0 0; padding: 8px 24px 40px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; animation: sheetUp 0.22s ease; }
+    @keyframes sheetUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+    .handle { width: 40px; height: 4px; background: #d1d5db; border-radius: 2px; margin: 14px auto 20px; }
+
+    .res-name { font-size: 20px; font-weight: 700; margin-bottom: 16px; line-height: 1.3; }
+    .res-row { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid #f3f4f6; }
+    .res-row:last-of-type { border-bottom: none; }
+    .res-lbl { font-size: 13px; color: #6b7280; }
+    .res-val { font-size: 14px; font-weight: 600; font-family: monospace; color: #1a2332; }
+
+    .settings-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+    .section-lbl { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; margin-top: 24px; }
+    .gap8 { margin-bottom: 8px; }
+
+    /* ─── LOADING ─────────────────────────── */
+    #loading { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.82); z-index: 400; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+    #loading.on { display: flex; }
+    .spinner { width: 36px; height: 36px; border-radius: 50%; border: 3px solid #e5e7eb; border-top-color: #00d4aa; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .loading-txt { font-size: 14px; color: #6b7280; }
+
+    /* ─── TOAST ───────────────────────────── */
+    .toast { position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%); background: #1a2332; color: white; padding: 12px 22px; border-radius: 50px; font-size: 14px; z-index: 500; white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,0.3); animation: toastIn 0.25s ease; }
+    @keyframes toastIn { from{opacity:0;transform:translateX(-50%) translateY(8px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+
+    #fileInput, #settingsFileInput { display: none; }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="app-header" id="appHeader" style="display:none">
+  <div class="header-logo">יאמיט <span>| סורק מלאי</span></div>
+  <button class="icon-btn" id="settingsBtn">&#9881;&#65039;</button>
+</header>
+
+<!-- SETUP SCREEN -->
+<div class="screen active" id="setupScreen">
+  <div class="setup-card">
+    <div class="setup-icon">&#128230;</div>
+    <div class="setup-title">סורק מלאי יאמיט</div>
+    <div class="setup-sub">טען נתוני מלאי כדי להתחיל</div>
+
+    <label class="field-label" for="urlInput">קישור Google Sheets (פרסם כ-CSV)</label>
+    <input class="text-input" id="urlInput" type="url"
+      placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv">
+    <button class="btn btn-primary" id="loadUrlBtn">טען מהקישור</button>
+
+    <div class="divider">או</div>
+
+    <button class="btn btn-secondary" id="uploadBtn">&#128194; העלה קובץ CSV מהמכשיר</button>
+    <input type="file" id="fileInput" accept=".csv,.txt">
+
+    <div class="error-box" id="setupError"></div>
+  </div>
+</div>
+
+<!-- MAIN SCREEN -->
+<div class="screen" id="mainScreen">
+  <div class="stats-bar" id="statsBar"></div>
+  <div class="search-row">
+    <div class="search-wrap">
+      <span class="s-icon">&#128269;</span>
+      <input class="search-input" id="searchInput" type="search"
+        placeholder="חיפוש לפי שם, מק&quot;ט..."
+        autocomplete="off" autocorrect="off" spellcheck="false">
+      <button class="clear-btn" id="clearBtn">&#10005;</button>
+    </div>
+    <button class="cam-btn" id="scanBtn" title="סרוק ברקוד">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0f2438" stroke-width="2.5" stroke-linecap="round">
+        <path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/>
+        <line x1="7" y1="12" x2="17" y2="12"/>
+      </svg>
+    </button>
+  </div>
+  <div class="results-area" id="resultsArea"></div>
+</div>
+
+<!-- CAMERA OVERLAY -->
+<div id="camOverlay">
+  <div class="cam-inner">
+    <video id="video" playsinline autoplay muted></video>
+    <div class="scan-frame">
+      <div class="frame-box"><i></i><div class="scan-line"></div></div>
+    </div>
+    <div class="cam-flash" id="camFlash"></div>
+  </div>
+  <div class="cam-hint">כוון את הברקוד לתוך המסגרת</div>
+  <button class="cam-close" id="camClose">סגור</button>
+</div>
+
+<!-- RESULT MODAL -->
+<div class="backdrop" id="resultModal">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="res-name" id="modalName"></div>
+    <div id="modalBody"></div>
+    <button class="btn btn-ghost" id="modalClose" style="margin-top:18px">סגור</button>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="backdrop" id="settingsModal">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="settings-title">&#9881;&#65039; הגדרות</div>
+
+    <div class="section-lbl">מקור נתונים</div>
+    <label class="field-label" for="settingsUrl">קישור Google Sheets (CSV)</label>
+    <input class="text-input" id="settingsUrl" type="url"
+      placeholder="https://docs.google.com/...">
+    <button class="btn btn-primary" id="settingsLoadUrl">שמור וטען מחדש</button>
+    <button class="btn btn-secondary" id="settingsUploadBtn">&#128194; החלף קובץ CSV</button>
+    <input type="file" id="settingsFileInput" accept=".csv,.txt">
+
+    <div class="section-lbl">מיפוי עמודות</div>
+    <label class="field-label">מספר פריט (מזהה ראשי / ברקוד)</label>
+    <input class="text-input gap8" id="colId" dir="rtl">
+    <label class="field-label">שם פריט</label>
+    <input class="text-input gap8" id="colName" dir="rtl">
+    <label class="field-label">מספר חליפי (ברקוד יצרן)</label>
+    <input class="text-input gap8" id="colAlt" dir="rtl">
+    <label class="field-label">כמות במלאי</label>
+    <input class="text-input" id="colStock" dir="rtl">
+    <button class="btn btn-primary" id="saveColsBtn">שמור מיפוי</button>
+
+    <div class="section-lbl">נתונים</div>
+    <button class="btn btn-danger" id="clearDataBtn">&#128465; מחק נתונים שמורים ואפס</button>
+
+    <button class="btn btn-ghost" id="settingsClose" style="margin-top:12px">סגור</button>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="loading-txt">טוען נתונים...</div>
+</div>
+
+<script>
+// ── Constants ────────────────────────────────────────────────────────────────
+var LS_DATA = 'yamit_data';
+var LS_URL  = 'yamit_url';
+var LS_COLS = 'yamit_cols';
+var DEFAULT_COLS = { id: 'מספר פריט', name: 'שם פריט', alt: 'מספר חליפי', stock: 'כמות במלאי' };
+
+// ── State ────────────────────────────────────────────────────────────────────
+var products = [];
+var cols = Object.assign({}, DEFAULT_COLS);
+
+// ── DOM refs ─────────────────────────────────────────────────────────────────
+function el(id) { return document.getElementById(id); }
+var appHeader     = el('appHeader');
+var setupScreen   = el('setupScreen');
+var mainScreen    = el('mainScreen');
+var statsBar      = el('statsBar');
+var searchInput   = el('searchInput');
+var clearBtn      = el('clearBtn');
+var resultsArea   = el('resultsArea');
+var setupError    = el('setupError');
+var loadingEl     = el('loading');
+var camOverlay    = el('camOverlay');
+var camFlash      = el('camFlash');
+var resultModal   = el('resultModal');
+var settingsModal = el('settingsModal');
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+(function boot() {
+  var savedCols = localStorage.getItem(LS_COLS);
+  if (savedCols) {
+    try { cols = Object.assign({}, DEFAULT_COLS, JSON.parse(savedCols)); } catch(e) {}
+  }
+  var savedData = localStorage.getItem(LS_DATA);
+  if (savedData) {
+    try {
+      products = parseCSV(savedData);
+      showMain();
+      return;
+    } catch(e) {}
+  }
+  showSetup();
+})();
+
+// ── Screen switching ──────────────────────────────────────────────────────────
+function showSetup() {
+  setupScreen.classList.add('active');
+  mainScreen.classList.remove('active');
+  appHeader.style.display = 'none';
+  el('urlInput').value = localStorage.getItem(LS_URL) || '';
+}
+
+function showMain() {
+  setupScreen.classList.remove('active');
+  mainScreen.classList.add('active');
+  appHeader.style.display = 'flex';
+  updateStats();
+  renderEmpty();
+  searchInput.value = '';
+  clearBtn.classList.remove('on');
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function updateStats() {
+  var pos = 0, neg = 0;
+  products.forEach(function(p) {
+    var n = parseFloat(p[cols.stock]);
+    if (!isNaN(n) && n > 0) pos++;
+    if (!isNaN(n) && n < 0) neg++;
+  });
+  // Build stats bar with textContent only
+  statsBar.textContent = '';
+  var s1 = document.createElement('span');
+  var b1 = document.createElement('strong');
+  b1.textContent = fmt(products.length);
+  s1.appendChild(b1);
+  s1.appendChild(document.createTextNode(' פריטים'));
+  statsBar.appendChild(s1);
+
+  var s2 = document.createElement('span');
+  var b2 = document.createElement('strong');
+  b2.textContent = fmt(pos);
+  s2.appendChild(b2);
+  s2.appendChild(document.createTextNode(' במלאי'));
+  statsBar.appendChild(s2);
+
+  if (neg > 0) {
+    var s3 = document.createElement('span');
+    s3.style.color = '#dc2626';
+    var b3 = document.createElement('strong');
+    b3.textContent = fmt(neg);
+    s3.appendChild(b3);
+    s3.appendChild(document.createTextNode(' גירעון'));
+    statsBar.appendChild(s3);
+  }
+}
+
+// ── CSV parsing ───────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  var result = Papa.parse(text, { header: true, skipEmptyLines: true });
+  return result.data.filter(function(row) {
+    var name = String(row[cols.name] || '').trim();
+    var id   = String(row[cols.id]   || '').trim();
+    if (!name && !id) return false;
+    if (/^\*+.*\*+$/.test(name)) return false;
+    return true;
+  });
+}
+
+// ── Loading ───────────────────────────────────────────────────────────────────
+function setLoading(on) { loadingEl.classList.toggle('on', on); }
+function showErr(msg)  { setupError.textContent = msg; setupError.classList.add('on'); }
+function hideErr()     { setupError.classList.remove('on'); }
+
+function loadUrl(url) {
+  setLoading(true); hideErr();
+  fetch(url)
+    .then(function(res) {
+      if (!res.ok) throw new Error('http');
+      return res.text();
+    })
+    .then(function(text) {
+      var rows = parseCSV(text);
+      if (!rows.length) throw new Error('empty');
+      products = rows;
+      localStorage.setItem(LS_DATA, text);
+      localStorage.setItem(LS_URL, url);
+      showMain();
+      showToast('נטענו ' + fmt(products.length) + ' פריטים ✓');
+    })
+    .catch(function(e) {
+      showErr(e.message === 'empty'
+        ? 'לא נמצאו פריטים בקובץ'
+        : 'שגיאה בטעינת הנתונים. נסה שוב.');
+    })
+    .finally(function() { setLoading(false); });
+}
+
+function loadFile(file) {
+  setLoading(true); hideErr();
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var text = e.target.result;
+      var rows = parseCSV(text);
+      if (!rows.length) throw new Error('empty');
+      products = rows;
+      localStorage.setItem(LS_DATA, text);
+      localStorage.removeItem(LS_URL);
+      showMain();
+      showToast('נטענו ' + fmt(products.length) + ' פריטים ✓');
+    } catch(err) {
+      showErr('לא נמצאו פריטים בקובץ');
+    } finally {
+      setLoading(false);
+    }
+  };
+  reader.onerror = function() { showErr('שגיאה בקריאת הקובץ'); setLoading(false); };
+  reader.readAsText(file, 'UTF-8');
+}
+
+// ── Setup events ──────────────────────────────────────────────────────────────
+el('loadUrlBtn').addEventListener('click', function() {
+  var url = el('urlInput').value.trim();
+  if (!url) { showErr('יש להזין קישור'); return; }
+  loadUrl(url);
+});
+el('uploadBtn').addEventListener('click', function() { el('fileInput').click(); });
+el('fileInput').addEventListener('change', function(e) {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+// ── Search ────────────────────────────────────────────────────────────────────
+function doSearch(q) {
+  if (!q || q.length < 2) return null;
+  var lq = q.toLowerCase();
+  return products.filter(function(p) {
+    return norm(p[cols.id]).indexOf(lq) >= 0 ||
+           norm(p[cols.name]).indexOf(lq) >= 0 ||
+           norm(p[cols.alt]).indexOf(lq) >= 0;
+  });
+}
+
+// ── DOM-safe card builders ────────────────────────────────────────────────────
+function stockClass(qty) {
+  var n = parseFloat(qty);
+  if (isNaN(n) || n === 0) return 'zero';
+  return n > 0 ? 'pos' : 'neg';
+}
+
+function makeBadge(qty) {
+  var cls = stockClass(qty);
+  var n = parseFloat(qty);
+  var label = isNaN(n) ? '—' : n.toLocaleString('he-IL');
+  var span = document.createElement('span');
+  span.className = 'badge badge-' + cls;
+  var dot = document.createElement('span');
+  dot.className = 'bdot';
+  span.appendChild(dot);
+  span.appendChild(document.createTextNode(label));
+  return span;
+}
+
+function makeCard(p, onClick) {
+  var card = document.createElement('div');
+  card.className = 'product-card';
+
+  var nameEl = document.createElement('div');
+  nameEl.className = 'pc-name';
+  nameEl.textContent = p[cols.name] || '—';
+  card.appendChild(nameEl);
+
+  var meta = document.createElement('div');
+  meta.className = 'pc-meta';
+
+  var sku = document.createElement('span');
+  sku.className = 'pc-sku';
+  sku.textContent = p[cols.id] || '';
+  meta.appendChild(sku);
+  meta.appendChild(makeBadge(p[cols.stock]));
+  card.appendChild(meta);
+
+  card.addEventListener('click', onClick);
+  return card;
+}
+
+function renderList(results, q) {
+  resultsArea.textContent = '';
+  if (!results.length) {
+    renderEmpty('לא נמצאו תוצאות', 'אין פריטים התואמים "' + q + '"', '🤷');
+    return;
+  }
+  var count = document.createElement('div');
+  count.className = 'res-count';
+  count.textContent = fmt(results.length) + ' תוצאות';
+  resultsArea.appendChild(count);
+
+  results.forEach(function(p) {
+    resultsArea.appendChild(makeCard(p, function() { openResult(p); }));
+  });
+}
+
+function renderEmpty(title, sub, icon) {
+  resultsArea.textContent = '';
+  var wrap = document.createElement('div');
+  wrap.className = 'empty';
+
+  var ic = document.createElement('div');
+  ic.className = 'empty-icon';
+  ic.textContent = icon || '🔍';
+  wrap.appendChild(ic);
+
+  var h3 = document.createElement('h3');
+  h3.textContent = title || 'חפש מוצר';
+  wrap.appendChild(h3);
+
+  var p = document.createElement('p');
+  p.textContent = sub || 'הקלד שם מוצר, מק"ט\nאו סרוק ברקוד';
+  wrap.appendChild(p);
+
+  resultsArea.appendChild(wrap);
+}
+
+var debounceTimer;
+searchInput.addEventListener('input', function() {
+  var q = searchInput.value.trim();
+  clearBtn.classList.toggle('on', q.length > 0);
+  clearTimeout(debounceTimer);
+  if (!q) { renderEmpty(); return; }
+  debounceTimer = setTimeout(function() {
+    var res = doSearch(q);
+    if (res) renderList(res, q);
+  }, 130);
+});
+
+clearBtn.addEventListener('click', function() {
+  searchInput.value = '';
+  clearBtn.classList.remove('on');
+  renderEmpty();
+  searchInput.focus();
+});
+
+// ── Result modal ──────────────────────────────────────────────────────────────
+el('modalClose').addEventListener('click', function() { resultModal.classList.remove('open'); });
+resultModal.addEventListener('click', function(e) {
+  if (e.target === resultModal) resultModal.classList.remove('open');
+});
+
+function makeRow(label, valueText, valueBadge) {
+  var row = document.createElement('div');
+  row.className = 'res-row';
+
+  var lbl = document.createElement('span');
+  lbl.className = 'res-lbl';
+  lbl.textContent = label;
+  row.appendChild(lbl);
+
+  if (valueBadge) {
+    row.appendChild(valueBadge);
+  } else {
+    var val = document.createElement('span');
+    val.className = 'res-val';
+    val.textContent = valueText || '—';
+    row.appendChild(val);
+  }
+  return row;
+}
+
+function openResult(p) {
+  el('modalName').textContent = p[cols.name] || '—';
+  var body = el('modalBody');
+  body.textContent = '';
+
+  body.appendChild(makeRow('מספר פריט', p[cols.id] || '—'));
+  if (p[cols.alt] && String(p[cols.alt]).trim()) {
+    body.appendChild(makeRow('מספר חליפי', String(p[cols.alt]).trim()));
+  }
+  body.appendChild(makeRow('כמות במלאי', null, makeBadge(p[cols.stock])));
+
+  resultModal.classList.add('open');
+}
+
+// ── Scanner ───────────────────────────────────────────────────────────────────
+var codeReader = null;
+var scanning   = false;
+
+el('scanBtn').addEventListener('click', openCam);
+el('camClose').addEventListener('click', closeCam);
+
+function openCam() {
+  if (typeof ZXing === 'undefined') { showToast('ספריית הסריקה עדיין נטענת...'); return; }
+  camOverlay.classList.add('open');
+  codeReader = new ZXing.BrowserMultiFormatReader();
+  scanning = true;
+  codeReader.decodeFromVideoDevice(null, 'video', function(result) {
+    if (result && scanning) {
+      scanning = false;
+      var val = result.getText();
+      camFlash.textContent = '✓  ' + val;
+      camFlash.classList.add('on');
+      setTimeout(function() {
+        camFlash.classList.remove('on');
+        closeCam();
+        handleBarcode(val);
+      }, 600);
+    }
+  }).catch(function() {
+    closeCam();
+    showToast('אין גישה למצלמה. אנא אשר הרשאה בהגדרות.');
+  });
+}
+
+function closeCam() {
+  scanning = false;
+  if (codeReader) { try { codeReader.reset(); } catch(e){} codeReader = null; }
+  camOverlay.classList.remove('open');
+}
+
+function handleBarcode(val) {
+  var v = val.trim();
+  var match = products.find(function(p) { return String(p[cols.id]  || '').trim() === v; })
+           || products.find(function(p) { return String(p[cols.alt] || '').trim() === v; });
+  if (match) {
+    searchInput.value = v;
+    clearBtn.classList.add('on');
+    renderList([match], v);
+    openResult(match);
+    return;
+  }
+  var res = doSearch(v);
+  if (res && res.length) {
+    searchInput.value = v;
+    clearBtn.classList.add('on');
+    renderList(res, v);
+    if (res.length === 1) openResult(res[0]);
+  } else {
+    showToast('לא נמצא: ' + v);
+  }
+}
+
+// ── Settings modal ────────────────────────────────────────────────────────────
+el('settingsBtn').addEventListener('click', function() {
+  el('settingsUrl').value  = localStorage.getItem(LS_URL) || '';
+  el('colId').value        = cols.id;
+  el('colName').value      = cols.name;
+  el('colAlt').value       = cols.alt;
+  el('colStock').value     = cols.stock;
+  settingsModal.classList.add('open');
+});
+el('settingsClose').addEventListener('click', function() { settingsModal.classList.remove('open'); });
+settingsModal.addEventListener('click', function(e) {
+  if (e.target === settingsModal) settingsModal.classList.remove('open');
+});
+
+el('settingsLoadUrl').addEventListener('click', function() {
+  var url = el('settingsUrl').value.trim();
+  if (!url) return;
+  settingsModal.classList.remove('open');
+  loadUrl(url);
+});
+
+el('settingsUploadBtn').addEventListener('click', function() { el('settingsFileInput').click(); });
+el('settingsFileInput').addEventListener('change', function(e) {
+  if (e.target.files[0]) {
+    settingsModal.classList.remove('open');
+    loadFile(e.target.files[0]);
+    e.target.value = '';
+  }
+});
+
+el('saveColsBtn').addEventListener('click', function() {
+  cols = {
+    id:    el('colId').value.trim()    || DEFAULT_COLS.id,
+    name:  el('colName').value.trim()  || DEFAULT_COLS.name,
+    alt:   el('colAlt').value.trim()   || DEFAULT_COLS.alt,
+    stock: el('colStock').value.trim() || DEFAULT_COLS.stock,
+  };
+  localStorage.setItem(LS_COLS, JSON.stringify(cols));
+  var saved = localStorage.getItem(LS_DATA);
+  if (saved) {
+    try { products = parseCSV(saved); updateStats(); } catch(e) {}
+  }
+  renderEmpty();
+  searchInput.value = '';
+  clearBtn.classList.remove('on');
+  settingsModal.classList.remove('open');
+  showToast('מיפוי עמודות נשמר ✓');
+});
+
+el('clearDataBtn').addEventListener('click', function() {
+  if (!confirm('למחוק את כל הנתונים השמורים ולהתחיל מחדש?')) return;
+  localStorage.removeItem(LS_DATA);
+  localStorage.removeItem(LS_URL);
+  products = [];
+  settingsModal.classList.remove('open');
+  showSetup();
+});
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  var t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function() { t.remove(); }, 3000);
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function norm(v) { return String(v || '').toLowerCase(); }
+function fmt(n) { return Number(n).toLocaleString('he-IL'); }
+</script>
+</body>
+</html>
