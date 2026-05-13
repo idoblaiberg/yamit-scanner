@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>יאמיט | סורק דמו</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+  <style>
+    :root {
+      --bg: #07111f;
+      --surface: #0f1e30;
+      --surface2: #162840;
+      --border: #1e3450;
+      --accent: #00d4aa;
+      --accent-dim: rgba(0,212,170,0.12);
+      --blue: #3b9eff;
+      --text: #ddeaf8;
+      --text-dim: #5a7799;
+      --red: #ff4d6d;
+      --yellow: #ffc94d;
+      --green: #00d4aa;
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: 'Heebo', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 50;
+    }
+    .logo { font-size: 20px; font-weight: 900; color: var(--accent); }
+    .logo span { color: var(--text); font-weight: 300; }
+    .demo-badge {
+      background: rgba(255,201,77,0.15); color: var(--yellow);
+      font-size: 11px; font-weight: 700; padding: 4px 10px;
+      border-radius: 20px; border: 1px solid rgba(255,201,77,0.3);
+    }
+
+    main { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 14px; max-width: 600px; width: 100%; margin: 0 auto; }
+
+    /* Search */
+    .search-wrap { position: relative; }
+    .search-input {
+      width: 100%; padding: 14px 46px 14px 46px;
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      font-family: 'Heebo', sans-serif; font-size: 16px;
+      outline: none; transition: border-color 0.2s; direction: rtl;
+    }
+    .search-input::placeholder { color: var(--text-dim); }
+    .search-input:focus { border-color: var(--accent); }
+    .s-icon { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 18px; pointer-events: none; }
+    .clear-btn {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      background: var(--surface2); border: none; color: var(--text-dim);
+      width: 26px; height: 26px; border-radius: 50%; font-size: 13px;
+      cursor: pointer; display: none; align-items: center; justify-content: center;
+    }
+    .clear-btn.on { display: flex; }
+
+    /* Scan button */
+    .scan-btn {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 17px;
+      background: linear-gradient(135deg, #00d4aa, #00a88a);
+      border: none; border-radius: var(--radius);
+      color: #07111f; font-family: 'Heebo', sans-serif;
+      font-size: 17px; font-weight: 700; cursor: pointer;
+      box-shadow: 0 4px 24px rgba(0,212,170,0.25);
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .scan-btn:active { opacity: 0.85; transform: scale(0.98); }
+
+    /* Camera */
+    .cam-overlay {
+      display: none; position: fixed; inset: 0;
+      background: #000; z-index: 200;
+      flex-direction: column; align-items: center; justify-content: center;
+    }
+    .cam-overlay.open { display: flex; }
+    #video { width: 100%; max-width: 500px; display: block; }
+    .cam-frame-wrap {
+      position: relative; width: 100%; max-width: 500px;
+    }
+    .scan-corners {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    .frame-box {
+      width: 260px; height: 160px; position: relative;
+    }
+    .frame-box::before, .frame-box::after,
+    .frame-box > i::before, .frame-box > i::after {
+      content: ''; position: absolute;
+      width: 30px; height: 30px;
+      border-color: var(--accent); border-style: solid;
+    }
+    .frame-box::before  { top:0; right:0; border-width: 3px 3px 0 0; border-radius:0 6px 0 0; }
+    .frame-box::after   { top:0; left:0;  border-width: 3px 0 0 3px; border-radius:6px 0 0 0; }
+    .frame-box > i::before { bottom:0; right:0; border-width:0 3px 3px 0; border-radius:0 0 6px 0; }
+    .frame-box > i::after  { bottom:0; left:0;  border-width:0 0 3px 3px; border-radius:0 0 0 6px; }
+    .scan-line {
+      position: absolute; left:10px; right:10px; height:2px;
+      background: var(--accent); box-shadow: 0 0 10px var(--accent);
+      animation: sweep 2s ease-in-out infinite;
+    }
+    @keyframes sweep { 0%,100%{top:10px} 50%{top:calc(100% - 12px)} }
+    .cam-info { color: rgba(255,255,255,0.6); font-size: 14px; margin-top: 18px; }
+    .cam-result-flash {
+      position: absolute; inset: 0; background: rgba(0,212,170,0.2);
+      display: none; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 700; color: var(--accent);
+    }
+    .cam-close {
+      margin-top: 20px; padding: 13px 44px;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); font-family: 'Heebo', sans-serif;
+      font-size: 16px; font-weight: 500; border-radius: 50px; cursor: pointer;
+    }
+
+    /* Last scan debug */
+    .last-scan {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 14px;
+      font-size: 13px; color: var(--text-dim);
+      display: none;
+    }
+    .last-scan.on { display: block; }
+    .scan-val { color: var(--accent); font-family: monospace; font-weight: 600; }
+
+    /* Product card */
+    .result-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+      animation: up 0.25s ease;
+    }
+    @keyframes up { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+    .card-sport {
+      background: var(--accent-dim); border-bottom: 1px solid var(--border);
+      padding: 7px 16px; font-size: 12px; color: var(--accent); font-weight: 600;
+    }
+    .card-body { padding: 18px; }
+    .card-name { font-size: 20px; font-weight: 700; line-height: 1.3; margin-bottom: 5px; }
+    .card-feat { color: var(--text-dim); font-size: 14px; margin-bottom: 12px; }
+    .card-sku { font-size: 12px; color: var(--text-dim); font-family: monospace; margin-bottom: 14px; }
+
+    .prices { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+    .p-sale { font-size: 28px; font-weight: 900; color: var(--accent); }
+    .p-reg  { font-size: 16px; color: var(--text-dim); text-decoration: line-through; }
+    .p-only { font-size: 28px; font-weight: 900; color: var(--text); }
+    .sale-badge {
+      background: var(--red); color: #fff; font-size: 11px;
+      font-weight: 700; padding: 3px 9px; border-radius: 20px;
+    }
+
+    .stock {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 14px; border-radius: 50px; font-size: 14px; font-weight: 500;
+      margin-bottom: 16px;
+    }
+    .stock.in  { background: rgba(0,212,170,0.12); color: var(--green); }
+    .stock.low { background: rgba(255,201,77,0.12); color: var(--yellow); }
+    .stock.out { background: rgba(255,77,109,0.12); color: var(--red); }
+    .stock-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .in .stock-dot  { background:var(--green); box-shadow:0 0 6px var(--green); }
+    .low .stock-dot { background:var(--yellow); box-shadow:0 0 6px var(--yellow); }
+    .out .stock-dot { background:var(--red); }
+
+    .url-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 13px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 12px; color: var(--blue);
+      font-family: 'Heebo', sans-serif; font-size: 15px; font-weight: 500;
+      text-decoration: none;
+    }
+    .url-btn:active { background: rgba(59,158,255,0.1); }
+
+    /* List */
+    .results-list { display: flex; flex-direction: column; gap: 10px; }
+    .res-count { font-size: 13px; color: var(--text-dim); text-align: center; padding: 2px 0 6px; }
+    .result-row {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 16px; cursor: pointer;
+      transition: border-color 0.2s;
+      animation: up 0.2s ease;
+    }
+    .result-row:active { border-color: var(--accent); background: var(--surface2); }
+    .rr-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .rr-meta { font-size: 13px; color: var(--text-dim); display: flex; gap: 12px; }
+    .rr-price { color: var(--accent); font-weight: 600; }
+
+    /* Not found */
+    .not-found {
+      text-align: center; padding: 40px 20px;
+      animation: up 0.2s ease;
+    }
+    .not-found-icon { font-size: 48px; margin-bottom: 12px; }
+    .not-found h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .not-found p { color: var(--text-dim); font-size: 14px; line-height: 1.6; }
+    .not-found .barcode-val { color: var(--accent); font-family: monospace; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: 12px 22px; border-radius: 50px;
+      font-size: 14px; z-index: 999; white-space: nowrap;
+      animation: up 0.3s ease;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">יאמיט <span>| סורק</span></div>
+  <div class="demo-badge">גרסת דמו</div>
+</header>
+
+<main>
+  <!-- Search -->
+  <div class="search-wrap">
+    <span class="s-icon">🔍</span>
+    <input class="search-input" id="searchInput" placeholder="חיפוש לפי שם מוצר או מק&quot;ט..." autocomplete="off" autocorrect="off" spellcheck="false">
+    <button class="clear-btn" id="clearBtn">✕</button>
+  </div>
+
+  <!-- Scan -->
+  <button class="scan-btn" id="scanBtn">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+      <path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/>
+      <line x1="7" y1="12" x2="17" y2="12"/>
+    </svg>
+    סרוק ברקוד
+  </button>
+
+  <!-- Last scan debug line -->
+  <div class="last-scan" id="lastScan">
+    סרקתי: <span class="scan-val" id="scannedVal"></span>
+  </div>
+
+  <!-- Results -->
+  <div id="resultsArea"></div>
+</main>
+
+<!-- Camera overlay -->
+<div class="cam-overlay" id="camOverlay">
+  <div class="cam-frame-wrap">
+    <video id="video" playsinline autoplay muted></video>
+    <div class="scan-corners">
+      <div class="frame-box">
+        <i></i>
+        <div class="scan-line"></div>
+      </div>
+    </div>
+    <div class="cam-result-flash" id="flashMsg"></div>
+  </div>
+  <div class="cam-info">כוון את הברקוד לתוך המסגרת</div>
+  <button class="cam-close" id="camClose">סגור</button>
+</div>
+
+<script>
+// ── DEMO PRODUCTS (מהגיליון האמיתי, בלי EAN עדיין) ──────────────────
+const PRODUCTS = [
+  { sport:'גלישת סאפ', name:'בורג לחץ לגלשן רוח/סאפ', feat1:'', sku:'093X062', ean:'', price:'61', sale:'', stock:'קיים במלאי', url:'https://yamitysb.co.il/product/%d7%91%d7%95%d7%a8%d7%92-%d7%9c%d7%97%d7%a5-%d7%9c%d7%92%d7%9c%d7%a9%d7%9f-%d7%a8%d7%95%d7%97-%d7%a1%d7%90%d7%a4/' },
+  { sport:'גלישת סאפ', name:'גגון רך לרכב – Single Deluxe StayCovered', feat1:'', sku:'090ZA0005', ean:'', price:'288', sale:'', stock:'קיים במלאי', url:'https://yamitysb.co.il/product/%d7%92%d7%92%d7%95%d7%9f-%d7%a8%d7%9a-%d7%9c%d7%a8%d7%9b%d7%91-single-soft-racks/' },
+  { sport:'גלישת סאפ', name:'גלגל לעגלה 26 ס״מ', feat1:'', sku:'24O1026000', ean:'', price:'143', sale:'', stock:'נשארו במלאי רק 1', url:'https://yamitysb.co.il/product/%d7%92%d7%9c%d7%92%d7%9c-26%d7%a1%d7%b4%d7%9e-%d7%9c%d7%a2%d7%92%d7%9c%d7%94/' },
+  { sport:'גלישת סאפ', name:'גלשן סאפ FANATIC FLY 2024', feat1:'610 ליטר', sku:'1023FLY106', ean:'', price:'6869', sale:'6250', stock:'נשארו במלאי רק 3', url:'https://yamitysb.co.il/product/fly-air-2022/' },
+  { sport:'גלישת סאפ', name:'גלשן סאפ FANATIC FLY 2024', feat1:'96 ליטר', sku:'1023FLY96', ean:'', price:'6869', sale:'6250', stock:'אזל', url:'https://yamitysb.co.il/product/fly-air-2022/' },
+  { sport:'גלישת סאפ', name:"חליפה קצרה לונג ג'ון O'NEIL REACTOR", feat1:'L', sku:'11C5047L', ean:'', price:'400', sale:'', stock:'אזל', url:'https://yamitysb.co.il/product/%d7%92%d7%91%d7%a8%d7%99%d7%9d-reactor-2-sleeveless-1-5mm/' },
+  { sport:'גלישת סאפ', name:"חליפת גלישה לנשים לונג ג'ין ION", feat1:'S', sku:'08WI45562236P', ean:'', price:'807', sale:'', stock:'נשארו במלאי רק 2', url:'https://yamitysb.co.il/product/%d7%a0%d7%a9%d7%99%d7%9d-amaze-long-jane-2mm/' },
+  { sport:'קייט סרפינג', name:'זוג מצופים לClick Bar', feat1:'', sku:'05SBSCB-8174', ean:'', price:'289', sale:'', stock:'נשארו במלאי רק 1', url:'https://yamitysb.co.il/product/%d7%96%d7%95%d7%92-%d7%9e%d7%a6%d7%95%d7%a4%d7%99%d7%9d-%d7%9cclick-bar/' },
+  { sport:'קייט סרפינג', name:'חוט דיפאוור לClick Bar', feat1:'', sku:'05SBSCB-8165', ean:'', price:'194', sale:'', stock:'קיים במלאי', url:'https://yamitysb.co.il/product/%d7%97%d7%95%d7%98-%d7%93%d7%99%d7%a4%d7%90%d7%95%d7%95%d7%a8-%d7%9cclick-bar/' },
+  { sport:'קייט סרפינג', name:'גלשן דואוטון TS BIG AIR SLS 2026', feat1:'136x40', sku:'05B2607136', ean:'', price:'5800', sale:'', stock:'נשארו במלאי רק 1', url:'https://yamitysb.co.il/product/rusty-the-keg/' },
+  { sport:'קייט סרפינג', name:'גלשן קייט חיימי JAIME 2026', feat1:'136x41', sku:'05B2610136', ean:'', price:'4200', sale:'', stock:'קיים במלאי', url:'https://yamitysb.co.il/product/%d7%92%d7%9c%d7%a9%d7%9f-%d7%a7%d7%99%d7%99%d7%98-%d7%97%d7%99%d7%99%d7%9e%d7%99-jaime-2024/' },
+];
+
+// ── HELPERS ──────────────────────────────────────────────────────────
+function stockInfo(s) {
+  if (!s || s.includes('אזל') || s === '0') return { cls:'out', label:'אזל מהמלאי' };
+  if (s.includes('רק')) {
+    const n = (s.match(/\d+/) || [''])[0];
+    return { cls:'low', label:`נשארו ${n} במלאי` };
+  }
+  return { cls:'in', label:'קיים במלאי' };
+}
+function fmtPrice(v) {
+  if (!v) return '';
+  return '₪' + Number(String(v).replace(/,/g,'')).toLocaleString('he-IL');
+}
+function showToast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast'; el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// ── RENDER SINGLE PRODUCT ─────────────────────────────────────────────
+function renderProduct(p) {
+  const si = stockInfo(p.stock);
+  const hasSale = p.sale && p.sale !== '0' && p.sale !== p.price;
+  const pricesHtml = hasSale
+    ? `<div class="prices"><span class="p-sale">${fmtPrice(p.sale)}</span><span class="p-reg">${fmtPrice(p.price)}</span><span class="sale-badge">מבצע</span></div>`
+    : p.price ? `<div class="prices"><span class="p-only">${fmtPrice(p.price)}</span></div>` : '';
+
+  document.getElementById('resultsArea').innerHTML = `
+    <div class="result-card">
+      ${p.sport ? `<div class="card-sport">${p.sport}</div>` : ''}
+      <div class="card-body">
+        <div class="card-name">${p.name}</div>
+        ${p.feat1 ? `<div class="card-feat">${p.feat1}</div>` : ''}
+        <div class="card-sku">מק"ט: ${p.sku}</div>
+        ${pricesHtml}
+        <div class="stock ${si.cls}"><div class="stock-dot"></div>${si.label}</div>
+        ${p.url ? `<a class="url-btn" href="${p.url}" target="_blank" rel="noopener">🌐 פתח בחנות</a>` : ''}
+      </div>
+    </div>`;
+}
+
+// ── RENDER LIST ───────────────────────────────────────────────────────
+function renderList(results, query) {
+  if (!results.length) {
+    document.getElementById('resultsArea').innerHTML = `
+      <div class="not-found">
+        <div class="not-found-icon">🔍</div>
+        <h3>לא נמצאו תוצאות</h3>
+        <p>לא נמצא מוצר עבור<br><span class="barcode-val">"${query}"</span></p>
+        <p style="margin-top:12px;font-size:12px">כשיתווסף עמודת EAN לגיליון — הסריקה תעבוד ישירות</p>
+      </div>`;
+    return;
+  }
+  const rows = results.map((p,i) => `
+    <div class="result-row" data-idx="${i}">
+      <div class="rr-name">${p.name}${p.feat1 ? ` <span style="color:var(--text-dim);font-weight:400">— ${p.feat1}</span>` : ''}</div>
+      <div class="rr-meta">
+        <span>${p.sku}</span>
+        ${p.sale && p.sale!=='0' ? `<span class="rr-price">${fmtPrice(p.sale)}</span>` : p.price ? `<span class="rr-price">${fmtPrice(p.price)}</span>` : ''}
+      </div>
+    </div>`).join('');
+  document.getElementById('resultsArea').innerHTML = `
+    <div class="res-count">${results.length} תוצאות</div>
+    <div class="results-list">${rows}</div>`;
+  document.querySelectorAll('.result-row').forEach(el => {
+    el.addEventListener('click', () => renderProduct(results[+el.dataset.idx]));
+  });
+}
+
+// ── SEARCH ────────────────────────────────────────────────────────────
+function searchProducts(q) {
+  if (!q || q.length < 2) return [];
+  const lq = q.toLowerCase();
+  return PRODUCTS.filter(p =>
+    p.name.toLowerCase().includes(lq) ||
+    p.sku.toLowerCase().includes(lq) ||
+    (p.ean && p.ean.includes(lq)) ||
+    p.feat1.toLowerCase().includes(lq)
+  );
+}
+
+const searchInput = document.getElementById('searchInput');
+const clearBtn    = document.getElementById('clearBtn');
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.trim();
+  clearBtn.classList.toggle('on', q.length > 0);
+  if (!q) { document.getElementById('resultsArea').innerHTML = ''; return; }
+  const res = searchProducts(q);
+  if (res.length === 1) renderProduct(res[0]);
+  else renderList(res, q);
+});
+clearBtn.addEventListener('click', () => {
+  searchInput.value = '';
+  clearBtn.classList.remove('on');
+  document.getElementById('resultsArea').innerHTML = '';
+  document.getElementById('lastScan').classList.remove('on');
+});
+
+// ── SCANNER ───────────────────────────────────────────────────────────
+let codeReader = null;
+let scanning = false;
+
+document.getElementById('scanBtn').addEventListener('click', () => {
+  if (typeof ZXing === 'undefined') {
+    showToast('ספריית הסריקה עדיין נטענת, נסה שוב...');
+    return;
+  }
+  document.getElementById('camOverlay').classList.add('open');
+  codeReader = new ZXing.BrowserMultiFormatReader();
+  scanning = true;
+  codeReader.decodeFromVideoDevice(null, 'video', (result, err) => {
+    if (result && scanning) {
+      const val = result.getText();
+      scanning = false;
+
+      // Flash green
+      const flash = document.getElementById('flashMsg');
+      flash.textContent = '✓ ' + val;
+      flash.style.display = 'flex';
+      setTimeout(() => {
+        flash.style.display = 'none';
+        closeScanner();
+        handleBarcode(val);
+      }, 700);
+    }
+  }).catch(err => {
+    closeScanner();
+    showToast('לא ניתן לגשת למצלמה — בדוק הרשאות');
+  });
+});
+
+document.getElementById('camClose').addEventListener('click', closeScanner);
+
+function closeScanner() {
+  scanning = false;
+  if (codeReader) { try { codeReader.reset(); } catch(e){} codeReader = null; }
+  document.getElementById('camOverlay').classList.remove('open');
+}
+
+function handleBarcode(val) {
+  // Show what was scanned (debug helper)
+  document.getElementById('scannedVal').textContent = val;
+  document.getElementById('lastScan').classList.add('on');
+  searchInput.value = val;
+  clearBtn.classList.add('on');
+
+  // Try EAN match first
+  const byEan = PRODUCTS.find(p => p.ean && p.ean.replace(/\s/g,'') === val.replace(/\s/g,''));
+  if (byEan) { renderProduct(byEan); return; }
+
+  // Try SKU match
+  const bySku = PRODUCTS.find(p => p.sku.toLowerCase() === val.toLowerCase());
+  if (bySku) { renderProduct(bySku); return; }
+
+  // Fallback: text search
+  const res = searchProducts(val);
+  if (res.length === 1) renderProduct(res[0]);
+  else renderList(res, val);
+}
+</script>
+</body>
+</html>
