@@ -298,8 +298,10 @@
     <input class="text-input gap8" id="colId" dir="rtl">
     <label class="field-label">שם פריט</label>
     <input class="text-input gap8" id="colName" dir="rtl">
-    <label class="field-label">מספר חליפי (ברקוד יצרן)</label>
+    <label class="field-label">מספר חליפי (LMB / קוד פנימי)</label>
     <input class="text-input gap8" id="colAlt" dir="rtl">
+    <label class="field-label">ברקוד EAN (אופציונלי — לא חובה בכל שורה)</label>
+    <input class="text-input gap8" id="colEan" dir="rtl">
     <label class="field-label">כמות במלאי</label>
     <input class="text-input" id="colStock" dir="rtl">
     <button class="btn btn-primary" id="saveColsBtn">שמור מיפוי</button>
@@ -322,7 +324,7 @@
 var LS_DATA = 'yamit_data';
 var LS_URL  = 'yamit_url';
 var LS_COLS = 'yamit_cols';
-var DEFAULT_COLS = { id: 'מספר פריט', name: 'שם פריט', alt: 'מספר חליפי', stock: 'כמות במלאי' };
+var DEFAULT_COLS = { id: 'מספר פריט', name: 'שם פריט', alt: 'מספר חליפי', stock: 'כמות במלאי', ean: 'ברקוד' };
 
 // ── State ────────────────────────────────────────────────────────────────────
 var products = [];
@@ -496,7 +498,8 @@ function doSearch(q) {
   return products.filter(function(p) {
     return norm(p[cols.id]).indexOf(lq) >= 0 ||
            norm(p[cols.name]).indexOf(lq) >= 0 ||
-           norm(p[cols.alt]).indexOf(lq) >= 0;
+           norm(p[cols.alt]).indexOf(lq) >= 0 ||
+           norm(p[cols.ean]).indexOf(lq) >= 0;
   });
 }
 
@@ -743,7 +746,8 @@ function closeCam() {
 function handleBarcode(val) {
   var v = val.trim();
   var match = products.find(function(p) { return String(p[cols.id]  || '').trim() === v; })
-           || products.find(function(p) { return String(p[cols.alt] || '').trim() === v; });
+           || products.find(function(p) { return String(p[cols.alt] || '').trim() === v; })
+           || products.find(function(p) { return String(p[cols.ean] || '').trim() === v; });
   if (match) {
     searchInput.value = v;
     clearBtn.classList.add('on');
@@ -768,6 +772,7 @@ el('settingsBtn').addEventListener('click', function() {
   el('colId').value        = cols.id;
   el('colName').value      = cols.name;
   el('colAlt').value       = cols.alt;
+  el('colEan').value       = cols.ean;
   el('colStock').value     = cols.stock;
   settingsModal.classList.add('open');
 });
@@ -797,6 +802,7 @@ el('saveColsBtn').addEventListener('click', function() {
     id:    el('colId').value.trim()    || DEFAULT_COLS.id,
     name:  el('colName').value.trim()  || DEFAULT_COLS.name,
     alt:   el('colAlt').value.trim()   || DEFAULT_COLS.alt,
+    ean:   el('colEan').value.trim()   || DEFAULT_COLS.ean,
     stock: el('colStock').value.trim() || DEFAULT_COLS.stock,
   };
   localStorage.setItem(LS_COLS, JSON.stringify(cols));
