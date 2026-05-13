@@ -1,0 +1,17 @@
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Inventory data ────────────────────────────────────────────────────────────
+# Real inventory and scraping CSVs may contain sensitive pricing / stock data.
+# Keep only anonymized samples under csv/sample/.
+csv/*.csv
+csv/**/*.csv
+!csv/sample/
+!csv/sample/*.csv
+
+# ── Editor ───────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
