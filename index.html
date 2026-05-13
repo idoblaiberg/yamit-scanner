@@ -204,6 +204,15 @@
     @keyframes toastIn { from{opacity:0;transform:translateX(-50%) translateY(8px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
 
     #fileInput, #settingsFileInput { display: none; }
+
+    /* ─── SCRAPE ENRICHMENT ──────────────────── */
+    .price-regular { font-family: monospace; color: #1a2332; font-size: 13px; }
+    .price-sale    { font-family: monospace; color: #16a34a; font-size: 13px; font-weight: 700; }
+    .price-was     { font-family: monospace; color: #9ca3af; font-size: 12px; text-decoration: line-through; margin-left: 5px; }
+    .pc-price      { font-size: 13px; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+    .res-link      { color: #00d4aa; text-decoration: underline; cursor: pointer; font-size: 14px; font-weight: 600; word-break: break-all; }
+    .modal-section { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; padding: 14px 0 6px; border-top: 1px solid #f3f4f6; margin-top: 4px; }
+    .scrape-count  { font-size: 12px; color: #16a34a; margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -304,6 +313,30 @@
     <input class="text-input" id="colStock" dir="rtl">
     <button class="btn btn-primary" id="saveColsBtn">שמור מיפוי</button>
 
+    <div class="section-lbl">נתוני מחירים (סקרייפינג)</div>
+    <label class="field-label" for="scrapeUrlInput">קישור Google Sheets – דוח מחירים (CSV)</label>
+    <input class="text-input gap8" id="scrapeUrlInput" type="url"
+      placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv">
+    <button class="btn btn-primary" id="scrapeLoadUrlBtn">שמור וטען נתוני מחירים</button>
+    <div class="scrape-count" id="scrapeCount" style="display:none"></div>
+
+    <div class="section-lbl" style="margin-top:18px">מיפוי עמודות – דוח מחירים</div>
+    <label class="field-label">מק״ט (מפתח חיבור)</label>
+    <input class="text-input gap8" id="scColSku" dir="rtl">
+    <label class="field-label">מחיר רגיל</label>
+    <input class="text-input gap8" id="scColPrice" dir="rtl">
+    <label class="field-label">מחיר מבצע</label>
+    <input class="text-input gap8" id="scColSalePrice" dir="rtl">
+    <label class="field-label">מלאי (זמינות אתר)</label>
+    <input class="text-input gap8" id="scColStock" dir="rtl">
+    <label class="field-label">תכונה 1</label>
+    <input class="text-input gap8" id="scColFeature1" dir="rtl">
+    <label class="field-label">תכונה 2</label>
+    <input class="text-input gap8" id="scColFeature2" dir="rtl">
+    <label class="field-label">URL מוצר</label>
+    <input class="text-input gap8" id="scColUrl" dir="rtl">
+    <button class="btn btn-ghost" id="saveScrapeColsBtn">שמור מיפוי עמודות</button>
+
     <div class="section-lbl">נתונים</div>
     <button class="btn btn-danger" id="clearDataBtn">&#128465; מחק נתונים שמורים ואפס</button>
 
@@ -319,14 +352,23 @@
 
 <script>
 // ── Constants ────────────────────────────────────────────────────────────────
-var LS_DATA = 'yamit_data';
-var LS_URL  = 'yamit_url';
-var LS_COLS = 'yamit_cols';
+var LS_DATA        = 'yamit_data';
+var LS_URL         = 'yamit_url';
+var LS_COLS        = 'yamit_cols';
+var LS_SCRAPE_URL  = 'yamit_scrape_url';
+var LS_SCRAPE_DATA = 'yamit_scrape_data';
+var LS_SCRAPE_COLS = 'yamit_scrape_cols';
 var DEFAULT_COLS = { id: 'מספר פריט', name: 'שם פריט', alt: 'מספר חליפי', stock: 'כמות במלאי' };
+var DEFAULT_SCRAPE_COLS = {
+  sku: 'מק"ט', price: 'מחיר רגיל (₪)', salePrice: 'מחיר מבצע (₪)',
+  stock: 'מלאי', feature1: 'תכונה 1', feature2: 'תכונה 2', url: 'URL מוצר'
+};
 
 // ── State ────────────────────────────────────────────────────────────────────
-var products = [];
-var cols = Object.assign({}, DEFAULT_COLS);
+var products  = [];
+var cols      = Object.assign({}, DEFAULT_COLS);
+var scrapeCols = Object.assign({}, DEFAULT_SCRAPE_COLS);
+var scrapeMap  = {};
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 function el(id) { return document.getElementById(id); }
@@ -350,6 +392,12 @@ var settingsModal = el('settingsModal');
   if (savedCols) {
     try { cols = Object.assign({}, DEFAULT_COLS, JSON.parse(savedCols)); } catch(e) {}
   }
+  var savedScrapeCols = localStorage.getItem(LS_SCRAPE_COLS);
+  if (savedScrapeCols) {
+    try { scrapeCols = Object.assign({}, DEFAULT_SCRAPE_COLS, JSON.parse(savedScrapeCols)); } catch(e) {}
+  }
+  var savedScrape = localStorage.getItem(LS_SCRAPE_DATA);
+  if (savedScrape) { try { buildScrapeMap(savedScrape); } catch(e) {} }
   var savedData = localStorage.getItem(LS_DATA);
   if (savedData) {
     try {
@@ -424,6 +472,43 @@ function parseCSV(text) {
     if (/^\*+.*\*+$/.test(name)) return false;
     return true;
   });
+}
+
+// ── Scrape map ────────────────────────────────────────────────────────────────
+function buildScrapeMap(text) {
+  scrapeMap = {};
+  var result = Papa.parse(text, { header: true, skipEmptyLines: true });
+  result.data.forEach(function(row) {
+    var sku = String(row[scrapeCols.sku] || '').trim();
+    if (sku) scrapeMap[sku] = row;
+  });
+}
+
+function updateScrapeCount() {
+  var countEl = el('scrapeCount');
+  if (!countEl) return;
+  var n = Object.keys(scrapeMap).length;
+  if (n > 0) {
+    countEl.style.display = 'block';
+    countEl.textContent = '✓ נטענו ' + fmt(n) + ' פריטים מדוח המחירים';
+  } else {
+    countEl.style.display = 'none';
+  }
+}
+
+function loadScrapeUrl(url) {
+  setLoading(true);
+  fetch(url)
+    .then(function(res) { if (!res.ok) throw new Error(); return res.text(); })
+    .then(function(text) {
+      buildScrapeMap(text);
+      localStorage.setItem(LS_SCRAPE_DATA, text);
+      localStorage.setItem(LS_SCRAPE_URL, url);
+      updateScrapeCount();
+      showToast('נתוני מחירים נטענו ✓ (' + fmt(Object.keys(scrapeMap).length) + ' פריטים)');
+    })
+    .catch(function() { showToast('שגיאה בטעינת נתוני המחירים'); })
+    .finally(function() { setLoading(false); });
 }
 
 // ── Loading ───────────────────────────────────────────────────────────────────
@@ -539,6 +624,32 @@ function makeCard(p, onClick) {
   meta.appendChild(makeBadge(p[cols.stock]));
   card.appendChild(meta);
 
+  var sd = scrapeMap[String(p[cols.id] || '').trim()];
+  if (sd) {
+    var priceRow = document.createElement('div');
+    priceRow.className = 'pc-price';
+    var sale = String(sd[scrapeCols.salePrice] || '').trim();
+    var reg  = String(sd[scrapeCols.price]     || '').trim();
+    if (sale && sale !== reg && sale !== '0' && sale !== '') {
+      var saleEl = document.createElement('span');
+      saleEl.className = 'price-sale';
+      saleEl.textContent = '₪' + sale;
+      priceRow.appendChild(saleEl);
+      if (reg) {
+        var wasEl = document.createElement('span');
+        wasEl.className = 'price-was';
+        wasEl.textContent = '₪' + reg;
+        priceRow.appendChild(wasEl);
+      }
+    } else if (reg) {
+      var regEl = document.createElement('span');
+      regEl.className = 'price-regular';
+      regEl.textContent = '₪' + reg;
+      priceRow.appendChild(regEl);
+    }
+    if (priceRow.hasChildNodes()) card.appendChild(priceRow);
+  }
+
   card.addEventListener('click', onClick);
   return card;
 }
@@ -636,6 +747,45 @@ function openResult(p) {
   }
   body.appendChild(makeRow('כמות במלאי', null, makeBadge(p[cols.stock])));
 
+  var sd = scrapeMap[String(p[cols.id] || '').trim()];
+  if (sd) {
+    var sec = document.createElement('div');
+    sec.className = 'modal-section';
+    sec.textContent = 'נתוני אתר';
+    body.appendChild(sec);
+
+    var reg  = String(sd[scrapeCols.price]     || '').trim();
+    var sale = String(sd[scrapeCols.salePrice]  || '').trim();
+    if (reg)  body.appendChild(makeRow('מחיר רגיל',  '₪' + reg));
+    if (sale && sale !== reg && sale !== '0') body.appendChild(makeRow('מחיר מבצע', '₪' + sale));
+
+    var onlineStock = String(sd[scrapeCols.stock] || '').trim();
+    if (onlineStock) body.appendChild(makeRow('מלאי באתר', onlineStock));
+
+    var f1 = String(sd[scrapeCols.feature1] || '').trim();
+    var f2 = String(sd[scrapeCols.feature2] || '').trim();
+    if (f1) body.appendChild(makeRow('תכונה 1', f1));
+    if (f2) body.appendChild(makeRow('תכונה 2', f2));
+
+    var productUrl = String(sd[scrapeCols.url] || '').trim();
+    if (productUrl) {
+      var row = document.createElement('div');
+      row.className = 'res-row';
+      var lbl = document.createElement('span');
+      lbl.className = 'res-lbl';
+      lbl.textContent = 'קישור מוצר';
+      var link = document.createElement('a');
+      link.className = 'res-link';
+      link.textContent = 'פתח באתר ↗';
+      link.href = productUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      row.appendChild(lbl);
+      row.appendChild(link);
+      body.appendChild(row);
+    }
+  }
+
   resultModal.classList.add('open');
 }
 
@@ -699,11 +849,20 @@ function handleBarcode(val) {
 
 // ── Settings modal ────────────────────────────────────────────────────────────
 el('settingsBtn').addEventListener('click', function() {
-  el('settingsUrl').value  = localStorage.getItem(LS_URL) || '';
-  el('colId').value        = cols.id;
-  el('colName').value      = cols.name;
-  el('colAlt').value       = cols.alt;
-  el('colStock').value     = cols.stock;
+  el('settingsUrl').value    = localStorage.getItem(LS_URL) || '';
+  el('colId').value          = cols.id;
+  el('colName').value        = cols.name;
+  el('colAlt').value         = cols.alt;
+  el('colStock').value       = cols.stock;
+  el('scrapeUrlInput').value = localStorage.getItem(LS_SCRAPE_URL) || '';
+  el('scColSku').value       = scrapeCols.sku;
+  el('scColPrice').value     = scrapeCols.price;
+  el('scColSalePrice').value = scrapeCols.salePrice;
+  el('scColStock').value     = scrapeCols.stock;
+  el('scColFeature1').value  = scrapeCols.feature1;
+  el('scColFeature2').value  = scrapeCols.feature2;
+  el('scColUrl').value       = scrapeCols.url;
+  updateScrapeCount();
   settingsModal.classList.add('open');
 });
 el('settingsClose').addEventListener('click', function() { settingsModal.classList.remove('open'); });
@@ -725,6 +884,31 @@ el('settingsFileInput').addEventListener('change', function(e) {
     loadFile(e.target.files[0]);
     e.target.value = '';
   }
+});
+
+el('scrapeLoadUrlBtn').addEventListener('click', function() {
+  var url = el('scrapeUrlInput').value.trim();
+  if (!url) return;
+  settingsModal.classList.remove('open');
+  loadScrapeUrl(url);
+});
+
+el('saveScrapeColsBtn').addEventListener('click', function() {
+  scrapeCols = {
+    sku:       el('scColSku').value.trim()       || DEFAULT_SCRAPE_COLS.sku,
+    price:     el('scColPrice').value.trim()     || DEFAULT_SCRAPE_COLS.price,
+    salePrice: el('scColSalePrice').value.trim() || DEFAULT_SCRAPE_COLS.salePrice,
+    stock:     el('scColStock').value.trim()     || DEFAULT_SCRAPE_COLS.stock,
+    feature1:  el('scColFeature1').value.trim()  || DEFAULT_SCRAPE_COLS.feature1,
+    feature2:  el('scColFeature2').value.trim()  || DEFAULT_SCRAPE_COLS.feature2,
+    url:       el('scColUrl').value.trim()       || DEFAULT_SCRAPE_COLS.url
+  };
+  localStorage.setItem(LS_SCRAPE_COLS, JSON.stringify(scrapeCols));
+  var saved = localStorage.getItem(LS_SCRAPE_DATA);
+  if (saved) { try { buildScrapeMap(saved); } catch(e) {} }
+  updateScrapeCount();
+  settingsModal.classList.remove('open');
+  showToast('מיפוי עמודות דוח מחירים נשמר ✓');
 });
 
 el('saveColsBtn').addEventListener('click', function() {
@@ -750,7 +934,10 @@ el('clearDataBtn').addEventListener('click', function() {
   if (!confirm('למחוק את כל הנתונים השמורים ולהתחיל מחדש?')) return;
   localStorage.removeItem(LS_DATA);
   localStorage.removeItem(LS_URL);
+  localStorage.removeItem(LS_SCRAPE_DATA);
+  localStorage.removeItem(LS_SCRAPE_URL);
   products = [];
+  scrapeMap = {};
   settingsModal.classList.remove('open');
   showSetup();
 });
