@@ -245,7 +245,13 @@
 <!-- HEADER -->
 <header class="app-header" id="appHeader" style="display:none">
   <div class="header-logo">יאמיט <span>| סורק מלאי</span></div>
-  <button class="icon-btn" id="settingsBtn">&#9881;&#65039;</button>
+  <div style="display:flex;align-items:center;gap:8px">
+    <button class="icon-btn" id="pendingBtn" style="display:none;position:relative">
+      <span style="font-size:15px">💾</span>
+      <span id="pendingCount" style="position:absolute;top:-4px;left:-4px;background:#dc2626;color:white;border-radius:50%;width:16px;height:16px;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700"></span>
+    </button>
+    <button class="icon-btn" id="settingsBtn">&#9881;&#65039;</button>
+  </div>
 </header>
 
 <!-- SETUP SCREEN -->
@@ -388,6 +394,10 @@
     <input class="text-input gap8" id="scColUrl" dir="rtl">
     <button class="btn btn-ghost" id="saveScrapeColsBtn">שמור מיפוי עמודות</button>
 
+    <div class="section-lbl">ברקודים ממתינים לייצוא</div>
+    <div class="scrape-count" id="pendingCountSettings" style="display:none"></div>
+    <button class="btn btn-secondary" id="exportPendingBtn">&#128229; ייצא ממתינים כ-CSV</button>
+
     <div class="section-lbl">נתונים</div>
     <button class="btn btn-danger" id="clearDataBtn">&#128465; מחק נתונים שמורים ואפס</button>
 
@@ -426,8 +436,6 @@ var scrapeMap       = {};
 var pendingScan     = null;
 var pendingBarcodes = [];
 
-// stub — replaced in Task 8
-function updatePendingBadge() {}
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 function el(id) { return document.getElementById(id); }
@@ -470,6 +478,7 @@ var video         = el('video');
     } catch(e) {}
   }
   showSetup();
+  updatePendingBadge();
 })();
 
 // ── Screen switching ──────────────────────────────────────────────────────────
@@ -1038,10 +1047,17 @@ function handleBarcode(val) {
     if (res.length === 1) openResult(res[0]);
   } else {
     showToast('לא נמצא: ' + v);
+    if (pendingScan) {
+      el('snapSaveBtn').style.display = '';
+      el('scanPreview').classList.add('open');
+    }
   }
 }
 
 // ── Settings modal ────────────────────────────────────────────────────────────
+el('pendingBtn').addEventListener('click', function() { el('settingsBtn').click(); });
+el('exportPendingBtn').addEventListener('click', exportPendingCSV);
+
 el('settingsBtn').addEventListener('click', function() {
   el('settingsUrl').value    = localStorage.getItem(LS_URL) || '';
   el('colId').value          = cols.id;
@@ -1057,6 +1073,14 @@ el('settingsBtn').addEventListener('click', function() {
   el('scColFeature2').value  = scrapeCols.feature2;
   el('scColUrl').value       = scrapeCols.url;
   updateScrapeCount();
+  var unresolved = pendingBarcodes.filter(function(e) { return e.resolvedSku === null; });
+  var pcs = el('pendingCountSettings');
+  if (unresolved.length > 0) {
+    pcs.textContent = unresolved.length + ' ברקודים ממתינים לייצוא';
+    pcs.style.display = '';
+  } else {
+    pcs.style.display = 'none';
+  }
   settingsModal.classList.add('open');
 });
 el('settingsClose').addEventListener('click', function() { settingsModal.classList.remove('open'); });
@@ -1135,6 +1159,75 @@ el('clearDataBtn').addEventListener('click', function() {
   settingsModal.classList.remove('open');
   showSetup();
 });
+
+// ── Pending barcodes queue ────────────────────────────────────────────────────
+function savePendingBarcodes() {
+  localStorage.setItem(LS_PENDING, JSON.stringify(pendingBarcodes));
+}
+
+function updatePendingBadge() {
+  var btn = el('pendingBtn');
+  if (!btn) return;
+  var unresolved = pendingBarcodes.filter(function(e) { return e.resolvedSku === null; });
+  if (unresolved.length > 0) {
+    btn.style.display = '';
+    el('pendingCount').textContent = unresolved.length;
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+function savePendingBarcode() {
+  if (!pendingScan || !pendingScan.barcode) { showToast('אין ברקוד לשמירה'); return; }
+  var already = pendingBarcodes.some(function(e) { return e.barcode === pendingScan.barcode; });
+  if (already) { showToast('ברקוד זה כבר ברשימה'); return; }
+  pendingBarcodes.push({
+    barcode: pendingScan.barcode,
+    ocrText: pendingScan.ocrText || '',
+    timestamp: Date.now(),
+    resolvedSku: null
+  });
+  savePendingBarcodes();
+  updatePendingBadge();
+  showToast('ברקוד נשמר לייצוא ✓');
+}
+
+function linkPendingToProduct(sku) {
+  for (var i = pendingBarcodes.length - 1; i >= 0; i--) {
+    if (pendingBarcodes[i].resolvedSku === null) {
+      pendingBarcodes[i].resolvedSku = sku;
+      break;
+    }
+  }
+  savePendingBarcodes();
+  updatePendingBadge();
+}
+
+function exportPendingCSV() {
+  if (pendingBarcodes.length === 0) { showToast('אין ברקודים בהמתנה'); return; }
+  var rows = [['barcode', 'ocrText', 'resolvedSku', 'timestamp']];
+  pendingBarcodes.forEach(function(e) {
+    rows.push([
+      e.barcode || '',
+      '"' + (e.ocrText || '').replace(/"/g, '""') + '"',
+      e.resolvedSku || '',
+      e.timestamp || ''
+    ]);
+  });
+  var csv = rows.map(function(r) { return r.join(','); }).join('\n');
+  var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'pending-barcodes-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  if (confirm('ייצוא הושלם. לנקות את הרשימה?')) {
+    pendingBarcodes = [];
+    savePendingBarcodes();
+    updatePendingBadge();
+  }
+}
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function showToast(msg) {
