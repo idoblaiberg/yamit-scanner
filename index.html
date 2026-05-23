@@ -1205,14 +1205,10 @@ function linkPendingToProduct(sku) {
 
 function exportPendingCSV() {
   if (pendingBarcodes.length === 0) { showToast('אין ברקודים בהמתנה'); return; }
+  function q(v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; }
   var rows = [['barcode', 'ocrText', 'resolvedSku', 'timestamp']];
   pendingBarcodes.forEach(function(e) {
-    rows.push([
-      e.barcode || '',
-      '"' + (e.ocrText || '').replace(/"/g, '""') + '"',
-      e.resolvedSku || '',
-      e.timestamp || ''
-    ]);
+    rows.push([q(e.barcode), q(e.ocrText), q(e.resolvedSku), q(e.timestamp)]);
   });
   var csv = rows.map(function(r) { return r.join(','); }).join('\n');
   var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
