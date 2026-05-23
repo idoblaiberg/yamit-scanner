@@ -6,6 +6,7 @@
   <title>סורק מלאי יאמיט</title>
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -168,8 +169,10 @@
     .frame-box::after   { top:0; left:0;  border-width:3px 0 0 3px; border-radius:6px 0 0 0; }
     .frame-box > i::before { bottom:0; right:0; border-width:0 3px 3px 0; border-radius:0 0 6px 0; }
     .frame-box > i::after  { bottom:0; left:0;  border-width:0 0 3px 3px; border-radius:0 0 0 6px; }
-    .scan-line { position: absolute; left:8px; right:8px; height:2px; background:#00d4aa; box-shadow:0 0 8px #00d4aa; animation: sweep 2s ease-in-out infinite; }
-    @keyframes sweep { 0%,100%{top:8px} 50%{top:calc(100% - 10px)} }
+    .scan-line { display: none; }
+    .cam-shutter { position: absolute; bottom: 14px; left: 14px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.12); border: 2px solid rgba(255,255,255,0.35); display: flex; align-items: center; justify-content: center; font-size: 20px; pointer-events: none; }
+    .cam-processing { position: absolute; inset: 0; background: rgba(0,0,0,0.6); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: white; font-size: 14px; }
+    .cam-processing.on { display: flex; }
     .cam-hint { color: rgba(255,255,255,0.5); font-size: 14px; margin-top: 24px; text-align: center; }
     .cam-close { margin-top: 22px; padding: 12px 44px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; font-family: 'Heebo', sans-serif; font-size: 15px; border-radius: 50px; cursor: pointer; }
     .cam-flash { position: absolute; inset: 0; background: rgba(0,212,170,0.22); display: none; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: #00d4aa; }
@@ -205,6 +208,20 @@
 
     #fileInput, #settingsFileInput { display: none; }
 
+    /* ─── SCAN PREVIEW ──────────────────────────── */
+    #scanPreview { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: flex-end; justify-content: center; }
+    #scanPreview.open { display: flex; }
+    #scanPreview .sheet { background: white; border-radius: 20px 20px 0 0; padding: 8px 24px 32px; width: 100%; max-width: 600px; max-height: 85vh; overflow-y: auto; animation: sheetUp 0.22s ease; }
+    .snap-image { width: 100%; border-radius: 10px; margin-bottom: 14px; object-fit: cover; max-height: 200px; }
+    .snap-section { border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; }
+    .snap-section-barcode { background: #f0fdf4; }
+    .snap-section-ocr     { background: #eff6ff; }
+    .snap-section-empty   { background: #f9fafb; }
+    .snap-label { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+    .snap-value { font-size: 14px; font-family: monospace; color: #1a2332; word-break: break-all; line-height: 1.5; }
+    .snap-value-empty { font-size: 13px; color: #9ca3af; }
+    .snap-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+
     /* ─── SCRAPE ENRICHMENT ──────────────────── */
     .price-regular { font-family: monospace; color: #1a2332; font-size: 13px; }
     .price-sale    { font-family: monospace; color: #16a34a; font-size: 13px; font-weight: 700; }
@@ -212,6 +229,14 @@
     .pc-price      { font-size: 13px; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
     .res-link      { color: #00d4aa; text-decoration: underline; cursor: pointer; font-size: 14px; font-weight: 600; word-break: break-all; }
     .modal-section { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; padding: 14px 0 6px; border-top: 1px solid #f3f4f6; margin-top: 4px; }
+    .modal-thumb-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .modal-thumb { width: 50px; height: 50px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: #f3f4f6; }
+    .modal-thumb-name { flex: 1; font-size: 18px; font-weight: 700; line-height: 1.3; }
+    .modal-rescan { background: none; border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 6px 10px; font-size: 18px; cursor: pointer; flex-shrink: 0; font-family: 'Heebo', sans-serif; }
+    .ocr-section { margin-top: 10px; padding: 10px 0 0; border-top: 1px solid #f3f4f6; }
+    .ocr-label { font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .ocr-text { font-size: 13px; color: #6b7280; line-height: 1.5; word-break: break-word; }
+    .link-barcode-btn { margin-top: 12px; width: 100%; padding: 10px; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; color: #16a34a; font-size: 14px; font-weight: 600; cursor: pointer; font-family: 'Heebo', sans-serif; }
     .scrape-count  { font-size: 12px; color: #16a34a; margin-top: 6px; }
   </style>
 </head>
@@ -220,7 +245,13 @@
 <!-- HEADER -->
 <header class="app-header" id="appHeader" style="display:none">
   <div class="header-logo">יאמיט <span>| סורק מלאי</span></div>
-  <button class="icon-btn" id="settingsBtn">&#9881;&#65039;</button>
+  <div style="display:flex;align-items:center;gap:8px">
+    <button class="icon-btn" id="pendingBtn" style="display:none;position:relative">
+      <span style="font-size:15px">💾</span>
+      <span id="pendingCount" style="position:absolute;top:-4px;left:-4px;background:#dc2626;color:white;border-radius:50%;width:16px;height:16px;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700"></span>
+    </button>
+    <button class="icon-btn" id="settingsBtn">&#9881;&#65039;</button>
+  </div>
 </header>
 
 <!-- SETUP SCREEN -->
@@ -267,15 +298,41 @@
 
 <!-- CAMERA OVERLAY -->
 <div id="camOverlay">
-  <div class="cam-inner">
+  <div class="cam-inner" id="camInner">
     <video id="video" playsinline autoplay muted></video>
     <div class="scan-frame">
       <div class="frame-box"><i></i><div class="scan-line"></div></div>
     </div>
     <div class="cam-flash" id="camFlash"></div>
+    <div class="cam-shutter">📸</div>
+    <div class="cam-processing" id="camProcessing">
+      <div class="spinner"></div>
+      <span>מעבד תווית...</span>
+    </div>
   </div>
-  <div class="cam-hint">כוון את הברקוד לתוך המסגרת</div>
+  <div class="cam-hint">הקש על המסך לצילום</div>
   <button class="cam-close" id="camClose">סגור</button>
+</div>
+
+<!-- SCAN PREVIEW (Screen 2) -->
+<div id="scanPreview">
+  <div class="sheet">
+    <div class="handle"></div>
+    <img id="snapImg" class="snap-image" src="" alt="תמונת תווית">
+    <div id="snapBarcodeSection" class="snap-section snap-section-barcode">
+      <div class="snap-label">ברקוד שנקרא</div>
+      <div id="snapBarcodeVal" class="snap-value"></div>
+    </div>
+    <div class="snap-section snap-section-ocr">
+      <div class="snap-label">טקסט מהתווית (OCR)</div>
+      <div id="snapOcrVal" class="snap-value"></div>
+    </div>
+    <div class="snap-actions">
+      <button class="btn btn-primary" id="snapSearchBtn">🔍 חפש מוצר</button>
+      <button class="btn btn-secondary" id="snapSaveBtn" style="display:none">💾 שמור ברקוד בהמתנה</button>
+      <button class="btn btn-ghost" id="snapClose">ביטול</button>
+    </div>
+  </div>
 </div>
 
 <!-- RESULT MODAL -->
@@ -337,6 +394,10 @@
     <input class="text-input gap8" id="scColUrl" dir="rtl">
     <button class="btn btn-ghost" id="saveScrapeColsBtn">שמור מיפוי עמודות</button>
 
+    <div class="section-lbl">ברקודים ממתינים לייצוא</div>
+    <div class="scrape-count" id="pendingCountSettings" style="display:none"></div>
+    <button class="btn btn-secondary" id="exportPendingBtn">&#128229; ייצא ממתינים כ-CSV</button>
+
     <div class="section-lbl">נתונים</div>
     <button class="btn btn-danger" id="clearDataBtn">&#128465; מחק נתונים שמורים ואפס</button>
 
@@ -350,6 +411,8 @@
   <div class="loading-txt">טוען נתונים...</div>
 </div>
 
+<canvas id="snapCanvas" style="display:none"></canvas>
+
 <script>
 // ── Constants ────────────────────────────────────────────────────────────────
 var LS_DATA        = 'yamit_data';
@@ -358,6 +421,7 @@ var LS_COLS        = 'yamit_cols';
 var LS_SCRAPE_URL  = 'yamit_scrape_url';
 var LS_SCRAPE_DATA = 'yamit_scrape_data';
 var LS_SCRAPE_COLS = 'yamit_scrape_cols';
+var LS_PENDING     = 'yamit_pending';
 var DEFAULT_COLS = { id: 'מספר פריט', name: 'שם פריט', alt: 'מספר חליפי', stock: 'כמות במלאי' };
 var DEFAULT_SCRAPE_COLS = {
   sku: 'מק"ט', price: 'מחיר רגיל (₪)', salePrice: 'מחיר מבצע (₪)',
@@ -365,10 +429,13 @@ var DEFAULT_SCRAPE_COLS = {
 };
 
 // ── State ────────────────────────────────────────────────────────────────────
-var products  = [];
-var cols      = Object.assign({}, DEFAULT_COLS);
-var scrapeCols = Object.assign({}, DEFAULT_SCRAPE_COLS);
-var scrapeMap  = {};
+var products        = [];
+var cols            = Object.assign({}, DEFAULT_COLS);
+var scrapeCols      = Object.assign({}, DEFAULT_SCRAPE_COLS);
+var scrapeMap       = {};
+var pendingScan     = null;
+var pendingBarcodes = [];
+
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 function el(id) { return document.getElementById(id); }
@@ -385,6 +452,7 @@ var camOverlay    = el('camOverlay');
 var camFlash      = el('camFlash');
 var resultModal   = el('resultModal');
 var settingsModal = el('settingsModal');
+var video         = el('video');
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 (function boot() {
@@ -399,14 +467,18 @@ var settingsModal = el('settingsModal');
   var savedScrape = localStorage.getItem(LS_SCRAPE_DATA);
   if (savedScrape) { try { buildScrapeMap(savedScrape); } catch(e) {} }
   var savedData = localStorage.getItem(LS_DATA);
+  var savedPending = localStorage.getItem(LS_PENDING);
+  if (savedPending) { try { pendingBarcodes = JSON.parse(savedPending); } catch(e) {} }
   if (savedData) {
     try {
       products = parseCSV(savedData);
       showMain();
+      updatePendingBadge();
       return;
     } catch(e) {}
   }
   showSetup();
+  updatePendingBadge();
 })();
 
 // ── Screen switching ──────────────────────────────────────────────────────────
@@ -737,9 +809,36 @@ function makeRow(label, valueText, valueBadge) {
 }
 
 function openResult(p) {
-  el('modalName').textContent = p[cols.name] || '—';
   var body = el('modalBody');
   body.textContent = '';
+  el('modalName').textContent = '';
+
+  if (pendingScan && pendingScan.imageDataUrl) {
+    var thumbRow = document.createElement('div');
+    thumbRow.className = 'modal-thumb-row';
+    var img = document.createElement('img');
+    img.className = 'modal-thumb';
+    img.src = pendingScan.imageDataUrl;
+    img.alt = p[cols.name] || '';
+    var nameDiv = document.createElement('div');
+    nameDiv.className = 'modal-thumb-name';
+    nameDiv.textContent = p[cols.name] || '—';
+    var rescanBtn = document.createElement('button');
+    rescanBtn.className = 'modal-rescan';
+    rescanBtn.textContent = '🔄';
+    rescanBtn.title = 'סרוק שוב';
+    rescanBtn.addEventListener('click', function() {
+      resultModal.classList.remove('open');
+      pendingScan = null;
+      openCam();
+    });
+    thumbRow.appendChild(img);
+    thumbRow.appendChild(nameDiv);
+    thumbRow.appendChild(rescanBtn);
+    body.appendChild(thumbRow);
+  } else {
+    el('modalName').textContent = p[cols.name] || '—';
+  }
 
   body.appendChild(makeRow('מספר פריט', p[cols.id] || '—'));
   if (p[cols.alt] && String(p[cols.alt]).trim()) {
@@ -753,36 +852,65 @@ function openResult(p) {
     sec.className = 'modal-section';
     sec.textContent = 'נתוני אתר';
     body.appendChild(sec);
-
-    var reg  = String(sd[scrapeCols.price]     || '').trim();
-    var sale = String(sd[scrapeCols.salePrice]  || '').trim();
-    if (reg)  body.appendChild(makeRow('מחיר רגיל',  '₪' + reg));
+    var reg  = String(sd[scrapeCols.price]    || '').trim();
+    var sale = String(sd[scrapeCols.salePrice] || '').trim();
+    if (reg)  body.appendChild(makeRow('מחיר רגיל', '₪' + reg));
     if (sale && sale !== reg && sale !== '0') body.appendChild(makeRow('מחיר מבצע', '₪' + sale));
-
     var onlineStock = String(sd[scrapeCols.stock] || '').trim();
     if (onlineStock) body.appendChild(makeRow('מלאי באתר', onlineStock));
-
     var f1 = String(sd[scrapeCols.feature1] || '').trim();
     var f2 = String(sd[scrapeCols.feature2] || '').trim();
     if (f1) body.appendChild(makeRow('תכונה 1', f1));
     if (f2) body.appendChild(makeRow('תכונה 2', f2));
-
     var productUrl = String(sd[scrapeCols.url] || '').trim();
     if (productUrl) {
-      var row = document.createElement('div');
-      row.className = 'res-row';
-      var lbl = document.createElement('span');
-      lbl.className = 'res-lbl';
-      lbl.textContent = 'קישור מוצר';
+      var urlRow = document.createElement('div');
+      urlRow.className = 'res-row';
+      var urlLbl = document.createElement('span');
+      urlLbl.className = 'res-lbl';
+      urlLbl.textContent = 'קישור מוצר';
       var link = document.createElement('a');
       link.className = 'res-link';
       link.textContent = 'פתח באתר ↗';
       link.href = productUrl;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
-      row.appendChild(lbl);
-      row.appendChild(link);
-      body.appendChild(row);
+      urlRow.appendChild(urlLbl);
+      urlRow.appendChild(link);
+      body.appendChild(urlRow);
+    }
+  }
+
+  if (pendingScan && pendingScan.ocrText) {
+    var ocrSec = document.createElement('div');
+    ocrSec.className = 'ocr-section';
+    var ocrLbl = document.createElement('div');
+    ocrLbl.className = 'ocr-label';
+    ocrLbl.textContent = 'טקסט מהתווית';
+    var ocrTxt = document.createElement('div');
+    ocrTxt.className = 'ocr-text';
+    ocrTxt.textContent = pendingScan.ocrText;
+    ocrSec.appendChild(ocrLbl);
+    ocrSec.appendChild(ocrTxt);
+    body.appendChild(ocrSec);
+  }
+
+  if (pendingScan && pendingScan.barcode) {
+    var unresolved = pendingBarcodes.filter(function(e) {
+      return e.resolvedSku === null && e.barcode === pendingScan.barcode;
+    });
+    if (unresolved.length > 0) {
+      var linkBtn = document.createElement('button');
+      linkBtn.className = 'link-barcode-btn';
+      linkBtn.textContent = '🔗 קשר ברקוד למוצר זה';
+      linkBtn.addEventListener('click', function() {
+        linkPendingToProduct(String(p[cols.id] || '').trim());
+        linkBtn.textContent = '✓ ברקוד קושר למוצר';
+        linkBtn.disabled = true;
+        showToast('ברקוד קושר למוצר ✓');
+        pendingScan = null;
+      });
+      body.appendChild(linkBtn);
     }
   }
 
@@ -790,40 +918,115 @@ function openResult(p) {
 }
 
 // ── Scanner ───────────────────────────────────────────────────────────────────
-var codeReader = null;
-var scanning   = false;
+function captureFrame() {
+  var canvas = el('snapCanvas');
+  canvas.width  = video.videoWidth  || 640;
+  canvas.height = video.videoHeight || 480;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  return canvas.toDataURL('image/jpeg', 0.88);
+}
+
+function decodeBarcode(imageDataUrl) {
+  var reader = new ZXing.BrowserMultiFormatReader();
+  return reader.decodeFromImageUrl(imageDataUrl)
+    .then(function(r) { return r.getText(); })
+    .catch(function() { return null; });
+}
+
+function extractOCR(imageDataUrl) {
+  if (typeof Tesseract === 'undefined') return Promise.resolve('');
+  return Tesseract.recognize(imageDataUrl, 'heb+eng')
+    .then(function(r) { return (r.data.text || '').trim(); })
+    .catch(function() { return ''; });
+}
 
 el('scanBtn').addEventListener('click', openCam);
 el('camClose').addEventListener('click', closeCam);
+el('camInner').addEventListener('click', function() {
+  if (el('camProcessing').classList.contains('on')) return;
+  var imageDataUrl = captureFrame();
+  el('camProcessing').classList.add('on');
+  Promise.all([decodeBarcode(imageDataUrl), extractOCR(imageDataUrl)])
+    .then(function(results) {
+      el('camProcessing').classList.remove('on');
+      closeCam();
+      pendingScan = { imageDataUrl: imageDataUrl, barcode: results[0], ocrText: results[1] };
+      showScanPreview();
+    });
+});
 
 function openCam() {
-  if (typeof ZXing === 'undefined') { showToast('ספריית הסריקה עדיין נטענת...'); return; }
   camOverlay.classList.add('open');
-  codeReader = new ZXing.BrowserMultiFormatReader();
-  scanning = true;
-  codeReader.decodeFromVideoDevice(null, 'video', function(result) {
-    if (result && scanning) {
-      scanning = false;
-      var val = result.getText();
-      camFlash.textContent = '✓  ' + val;
-      camFlash.classList.add('on');
-      setTimeout(function() {
-        camFlash.classList.remove('on');
-        closeCam();
-        handleBarcode(val);
-      }, 600);
-    }
-  }).catch(function() {
-    closeCam();
-    showToast('אין גישה למצלמה. אנא אשר הרשאה בהגדרות.');
-  });
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then(function(stream) { video.srcObject = stream; })
+    .catch(function() {
+      closeCam();
+      showToast('אין גישה למצלמה. אנא אשר הרשאה בהגדרות.');
+    });
 }
 
 function closeCam() {
-  scanning = false;
-  if (codeReader) { try { codeReader.reset(); } catch(e){} codeReader = null; }
+  if (video.srcObject) {
+    video.srcObject.getTracks().forEach(function(t) { t.stop(); });
+    video.srcObject = null;
+  }
   camOverlay.classList.remove('open');
 }
+
+function showScanPreview() {
+  var s = pendingScan;
+  el('snapImg').src = s.imageDataUrl;
+  if (s.barcode) {
+    el('snapBarcodeSection').className = 'snap-section snap-section-barcode';
+    el('snapBarcodeVal').className = 'snap-value';
+    el('snapBarcodeVal').textContent = s.barcode;
+  } else {
+    el('snapBarcodeSection').className = 'snap-section snap-section-empty';
+    el('snapBarcodeVal').className = 'snap-value-empty';
+    el('snapBarcodeVal').textContent = 'לא נמצא ברקוד';
+  }
+  el('snapOcrVal').textContent = s.ocrText || 'לא נמצא טקסט';
+  el('snapSaveBtn').style.display = 'none';
+  el('scanPreview').classList.add('open');
+}
+
+function hideScanPreview() {
+  el('scanPreview').classList.remove('open');
+}
+
+el('snapSearchBtn').addEventListener('click', function() {
+  var s = pendingScan;
+  if (!s) return;
+  if (s.barcode) {
+    hideScanPreview();
+    handleBarcode(s.barcode);
+  } else if (s.ocrText && s.ocrText.length >= 2) {
+    var res = doSearch(s.ocrText);
+    if (res && res.length) {
+      hideScanPreview();
+      searchInput.value = s.ocrText;
+      clearBtn.classList.add('on');
+      renderList(res, s.ocrText);
+      if (res.length === 1) openResult(res[0]);
+    } else {
+      showToast('לא נמצא');
+      el('snapSaveBtn').style.display = '';
+    }
+  } else {
+    showToast('לא נמצא מידע לחיפוש');
+    el('snapSaveBtn').style.display = '';
+  }
+});
+
+el('snapClose').addEventListener('click', function() {
+  pendingScan = null;
+  hideScanPreview();
+});
+
+el('snapSaveBtn').addEventListener('click', function() {
+  savePendingBarcode();
+  el('snapSaveBtn').style.display = 'none';
+});
 
 function handleBarcode(val) {
   var v = val.trim();
@@ -844,10 +1047,17 @@ function handleBarcode(val) {
     if (res.length === 1) openResult(res[0]);
   } else {
     showToast('לא נמצא: ' + v);
+    if (pendingScan) {
+      el('snapSaveBtn').style.display = '';
+      el('scanPreview').classList.add('open');
+    }
   }
 }
 
 // ── Settings modal ────────────────────────────────────────────────────────────
+el('pendingBtn').addEventListener('click', function() { el('settingsBtn').click(); });
+el('exportPendingBtn').addEventListener('click', exportPendingCSV);
+
 el('settingsBtn').addEventListener('click', function() {
   el('settingsUrl').value    = localStorage.getItem(LS_URL) || '';
   el('colId').value          = cols.id;
@@ -863,6 +1073,14 @@ el('settingsBtn').addEventListener('click', function() {
   el('scColFeature2').value  = scrapeCols.feature2;
   el('scColUrl').value       = scrapeCols.url;
   updateScrapeCount();
+  var unresolved = pendingBarcodes.filter(function(e) { return e.resolvedSku === null; });
+  var pcs = el('pendingCountSettings');
+  if (unresolved.length > 0) {
+    pcs.textContent = unresolved.length + ' ברקודים ממתינים לייצוא';
+    pcs.style.display = '';
+  } else {
+    pcs.style.display = 'none';
+  }
   settingsModal.classList.add('open');
 });
 el('settingsClose').addEventListener('click', function() { settingsModal.classList.remove('open'); });
@@ -941,6 +1159,71 @@ el('clearDataBtn').addEventListener('click', function() {
   settingsModal.classList.remove('open');
   showSetup();
 });
+
+// ── Pending barcodes queue ────────────────────────────────────────────────────
+function savePendingBarcodes() {
+  localStorage.setItem(LS_PENDING, JSON.stringify(pendingBarcodes));
+}
+
+function updatePendingBadge() {
+  var btn = el('pendingBtn');
+  if (!btn) return;
+  var unresolved = pendingBarcodes.filter(function(e) { return e.resolvedSku === null; });
+  if (unresolved.length > 0) {
+    btn.style.display = '';
+    el('pendingCount').textContent = unresolved.length;
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+function savePendingBarcode() {
+  if (!pendingScan || !pendingScan.barcode) { showToast('אין ברקוד לשמירה'); return; }
+  var already = pendingBarcodes.some(function(e) { return e.barcode === pendingScan.barcode; });
+  if (already) { showToast('ברקוד זה כבר ברשימה'); return; }
+  pendingBarcodes.push({
+    barcode: pendingScan.barcode,
+    ocrText: pendingScan.ocrText || '',
+    timestamp: Date.now(),
+    resolvedSku: null
+  });
+  savePendingBarcodes();
+  updatePendingBadge();
+  showToast('ברקוד נשמר לייצוא ✓');
+}
+
+function linkPendingToProduct(sku) {
+  for (var i = pendingBarcodes.length - 1; i >= 0; i--) {
+    if (pendingBarcodes[i].resolvedSku === null) {
+      pendingBarcodes[i].resolvedSku = sku;
+      break;
+    }
+  }
+  savePendingBarcodes();
+  updatePendingBadge();
+}
+
+function exportPendingCSV() {
+  if (pendingBarcodes.length === 0) { showToast('אין ברקודים בהמתנה'); return; }
+  function q(v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; }
+  var rows = [['barcode', 'ocrText', 'resolvedSku', 'timestamp']];
+  pendingBarcodes.forEach(function(e) {
+    rows.push([q(e.barcode), q(e.ocrText), q(e.resolvedSku), q(e.timestamp)]);
+  });
+  var csv = rows.map(function(r) { return r.join(','); }).join('\n');
+  var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'pending-barcodes-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  if (confirm('ייצוא הושלם. לנקות את הרשימה?')) {
+    pendingBarcodes = [];
+    savePendingBarcodes();
+    updatePendingBadge();
+  }
+}
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function showToast(msg) {
