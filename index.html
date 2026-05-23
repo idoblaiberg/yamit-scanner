@@ -832,38 +832,36 @@ function extractOCR(imageDataUrl) {
     .catch(function() { return ''; });
 }
 
-var codeReader = null;
-var scanning   = false;
-
 el('scanBtn').addEventListener('click', openCam);
 el('camClose').addEventListener('click', closeCam);
+el('camInner').addEventListener('click', function() {
+  if (el('camProcessing').classList.contains('on')) return;
+  var imageDataUrl = captureFrame();
+  el('camProcessing').classList.add('on');
+  Promise.all([decodeBarcode(imageDataUrl), extractOCR(imageDataUrl)])
+    .then(function(results) {
+      el('camProcessing').classList.remove('on');
+      closeCam();
+      pendingScan = { imageDataUrl: imageDataUrl, barcode: results[0], ocrText: results[1] };
+      showScanPreview();
+    });
+});
 
 function openCam() {
-  if (typeof ZXing === 'undefined') { showToast('ספריית הסריקה עדיין נטענת...'); return; }
   camOverlay.classList.add('open');
-  codeReader = new ZXing.BrowserMultiFormatReader();
-  scanning = true;
-  codeReader.decodeFromVideoDevice(null, 'video', function(result) {
-    if (result && scanning) {
-      scanning = false;
-      var val = result.getText();
-      camFlash.textContent = '✓  ' + val;
-      camFlash.classList.add('on');
-      setTimeout(function() {
-        camFlash.classList.remove('on');
-        closeCam();
-        handleBarcode(val);
-      }, 600);
-    }
-  }).catch(function() {
-    closeCam();
-    showToast('אין גישה למצלמה. אנא אשר הרשאה בהגדרות.');
-  });
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then(function(stream) { video.srcObject = stream; })
+    .catch(function() {
+      closeCam();
+      showToast('אין גישה למצלמה. אנא אשר הרשאה בהגדרות.');
+    });
 }
 
 function closeCam() {
-  scanning = false;
-  if (codeReader) { try { codeReader.reset(); } catch(e){} codeReader = null; }
+  if (video.srcObject) {
+    video.srcObject.getTracks().forEach(function(t) { t.stop(); });
+    video.srcObject = null;
+  }
   camOverlay.classList.remove('open');
 }
 
