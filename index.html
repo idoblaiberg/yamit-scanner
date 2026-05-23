@@ -810,6 +810,7 @@ function openResult(p) {
     var img = document.createElement('img');
     img.className = 'modal-thumb';
     img.src = pendingScan.imageDataUrl;
+    img.alt = p[cols.name] || '';
     var nameDiv = document.createElement('div');
     nameDiv.className = 'modal-thumb-name';
     nameDiv.textContent = p[cols.name] || '—';
