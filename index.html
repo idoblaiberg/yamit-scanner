@@ -810,6 +810,28 @@ function openResult(p) {
 }
 
 // ── Scanner ───────────────────────────────────────────────────────────────────
+function captureFrame() {
+  var canvas = el('snapCanvas');
+  canvas.width  = video.videoWidth  || 640;
+  canvas.height = video.videoHeight || 480;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  return canvas.toDataURL('image/jpeg', 0.88);
+}
+
+function decodeBarcode(imageDataUrl) {
+  var reader = new ZXing.BrowserMultiFormatReader();
+  return reader.decodeFromImageUrl(imageDataUrl)
+    .then(function(r) { return r.getText(); })
+    .catch(function() { return null; });
+}
+
+function extractOCR(imageDataUrl) {
+  if (typeof Tesseract === 'undefined') return Promise.resolve('');
+  return Tesseract.recognize(imageDataUrl, 'heb+eng')
+    .then(function(r) { return (r.data.text || '').trim(); })
+    .catch(function() { return ''; });
+}
+
 var codeReader = null;
 var scanning   = false;
 
