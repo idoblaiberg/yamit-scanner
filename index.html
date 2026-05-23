@@ -360,8 +360,8 @@ var LS_URL         = 'yamit_url';
 var LS_COLS        = 'yamit_cols';
 var LS_SCRAPE_URL  = 'yamit_scrape_url';
 var LS_SCRAPE_DATA = 'yamit_scrape_data';
-var LS_SCRAPE_COLS  = 'yamit_scrape_cols';
-var LS_PENDING      = 'yamit_pending';
+var LS_SCRAPE_COLS = 'yamit_scrape_cols';
+var LS_PENDING     = 'yamit_pending';
 var DEFAULT_COLS = { id: 'מספר פריט', name: 'שם פריט', alt: 'מספר חליפי', stock: 'כמות במלאי' };
 var DEFAULT_SCRAPE_COLS = {
   sku: 'מק"ט', price: 'מחיר רגיל (₪)', salePrice: 'מחיר מבצע (₪)',
@@ -369,9 +369,9 @@ var DEFAULT_SCRAPE_COLS = {
 };
 
 // ── State ────────────────────────────────────────────────────────────────────
-var products  = [];
-var cols      = Object.assign({}, DEFAULT_COLS);
-var scrapeCols = Object.assign({}, DEFAULT_SCRAPE_COLS);
+var products        = [];
+var cols            = Object.assign({}, DEFAULT_COLS);
+var scrapeCols      = Object.assign({}, DEFAULT_SCRAPE_COLS);
 var scrapeMap       = {};
 var pendingScan     = null;
 var pendingBarcodes = [];
