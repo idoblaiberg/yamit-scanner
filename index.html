@@ -169,8 +169,10 @@
     .frame-box::after   { top:0; left:0;  border-width:3px 0 0 3px; border-radius:6px 0 0 0; }
     .frame-box > i::before { bottom:0; right:0; border-width:0 3px 3px 0; border-radius:0 0 6px 0; }
     .frame-box > i::after  { bottom:0; left:0;  border-width:0 0 3px 3px; border-radius:0 0 0 6px; }
-    .scan-line { position: absolute; left:8px; right:8px; height:2px; background:#00d4aa; box-shadow:0 0 8px #00d4aa; animation: sweep 2s ease-in-out infinite; }
-    @keyframes sweep { 0%,100%{top:8px} 50%{top:calc(100% - 10px)} }
+    .scan-line { display: none; }
+    .cam-shutter { position: absolute; bottom: 14px; left: 14px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.12); border: 2px solid rgba(255,255,255,0.35); display: flex; align-items: center; justify-content: center; font-size: 20px; pointer-events: none; }
+    .cam-processing { position: absolute; inset: 0; background: rgba(0,0,0,0.6); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: white; font-size: 14px; }
+    .cam-processing.on { display: flex; }
     .cam-hint { color: rgba(255,255,255,0.5); font-size: 14px; margin-top: 24px; text-align: center; }
     .cam-close { margin-top: 22px; padding: 12px 44px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; font-family: 'Heebo', sans-serif; font-size: 15px; border-radius: 50px; cursor: pointer; }
     .cam-flash { position: absolute; inset: 0; background: rgba(0,212,170,0.22); display: none; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: #00d4aa; }
@@ -268,14 +270,19 @@
 
 <!-- CAMERA OVERLAY -->
 <div id="camOverlay">
-  <div class="cam-inner">
+  <div class="cam-inner" id="camInner">
     <video id="video" playsinline autoplay muted></video>
     <div class="scan-frame">
       <div class="frame-box"><i></i><div class="scan-line"></div></div>
     </div>
     <div class="cam-flash" id="camFlash"></div>
+    <div class="cam-shutter">📸</div>
+    <div class="cam-processing" id="camProcessing">
+      <div class="spinner"></div>
+      <span>מעבד תווית...</span>
+    </div>
   </div>
-  <div class="cam-hint">כוון את הברקוד לתוך המסגרת</div>
+  <div class="cam-hint">הקש על המסך לצילום</div>
   <button class="cam-close" id="camClose">סגור</button>
 </div>
 
