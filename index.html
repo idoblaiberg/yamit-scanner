@@ -208,6 +208,20 @@
 
     #fileInput, #settingsFileInput { display: none; }
 
+    /* ─── SCAN PREVIEW ──────────────────────────── */
+    #scanPreview { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: flex-end; justify-content: center; }
+    #scanPreview.open { display: flex; }
+    #scanPreview .sheet { background: white; border-radius: 20px 20px 0 0; padding: 8px 24px 32px; width: 100%; max-width: 600px; max-height: 85vh; overflow-y: auto; animation: sheetUp 0.22s ease; }
+    .snap-image { width: 100%; border-radius: 10px; margin-bottom: 14px; object-fit: cover; max-height: 200px; }
+    .snap-section { border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; }
+    .snap-section-barcode { background: #f0fdf4; }
+    .snap-section-ocr     { background: #eff6ff; }
+    .snap-section-empty   { background: #f9fafb; }
+    .snap-label { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+    .snap-value { font-size: 14px; font-family: monospace; color: #1a2332; word-break: break-all; line-height: 1.5; }
+    .snap-value-empty { font-size: 13px; color: #9ca3af; }
+    .snap-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+
     /* ─── SCRAPE ENRICHMENT ──────────────────── */
     .price-regular { font-family: monospace; color: #1a2332; font-size: 13px; }
     .price-sale    { font-family: monospace; color: #16a34a; font-size: 13px; font-weight: 700; }
@@ -284,6 +298,27 @@
   </div>
   <div class="cam-hint">הקש על המסך לצילום</div>
   <button class="cam-close" id="camClose">סגור</button>
+</div>
+
+<!-- SCAN PREVIEW (Screen 2) -->
+<div id="scanPreview">
+  <div class="sheet">
+    <div class="handle"></div>
+    <img id="snapImg" class="snap-image" src="" alt="תמונת תווית">
+    <div id="snapBarcodeSection" class="snap-section snap-section-barcode">
+      <div class="snap-label">ברקוד שנקרא</div>
+      <div id="snapBarcodeVal" class="snap-value"></div>
+    </div>
+    <div class="snap-section snap-section-ocr">
+      <div class="snap-label">טקסט מהתווית (OCR)</div>
+      <div id="snapOcrVal" class="snap-value"></div>
+    </div>
+    <div class="snap-actions">
+      <button class="btn btn-primary" id="snapSearchBtn">🔍 חפש מוצר</button>
+      <button class="btn btn-secondary" id="snapSaveBtn" style="display:none">💾 שמור ברקוד בהמתנה</button>
+      <button class="btn btn-ghost" id="snapClose">ביטול</button>
+    </div>
+  </div>
 </div>
 
 <!-- RESULT MODAL -->
