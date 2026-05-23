@@ -6,6 +6,7 @@
   <title>סורק מלאי יאמיט</title>
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -350,6 +351,8 @@
   <div class="loading-txt">טוען נתונים...</div>
 </div>
 
+<canvas id="snapCanvas" style="display:none"></canvas>
+
 <script>
 // ── Constants ────────────────────────────────────────────────────────────────
 var LS_DATA        = 'yamit_data';
@@ -357,7 +360,8 @@ var LS_URL         = 'yamit_url';
 var LS_COLS        = 'yamit_cols';
 var LS_SCRAPE_URL  = 'yamit_scrape_url';
 var LS_SCRAPE_DATA = 'yamit_scrape_data';
-var LS_SCRAPE_COLS = 'yamit_scrape_cols';
+var LS_SCRAPE_COLS  = 'yamit_scrape_cols';
+var LS_PENDING      = 'yamit_pending';
 var DEFAULT_COLS = { id: 'מספר פריט', name: 'שם פריט', alt: 'מספר חליפי', stock: 'כמות במלאי' };
 var DEFAULT_SCRAPE_COLS = {
   sku: 'מק"ט', price: 'מחיר רגיל (₪)', salePrice: 'מחיר מבצע (₪)',
@@ -368,7 +372,12 @@ var DEFAULT_SCRAPE_COLS = {
 var products  = [];
 var cols      = Object.assign({}, DEFAULT_COLS);
 var scrapeCols = Object.assign({}, DEFAULT_SCRAPE_COLS);
-var scrapeMap  = {};
+var scrapeMap       = {};
+var pendingScan     = null;
+var pendingBarcodes = [];
+
+// stub — replaced in Task 8
+function updatePendingBadge() {}
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 function el(id) { return document.getElementById(id); }
@@ -385,6 +394,7 @@ var camOverlay    = el('camOverlay');
 var camFlash      = el('camFlash');
 var resultModal   = el('resultModal');
 var settingsModal = el('settingsModal');
+var video         = el('video');
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 (function boot() {
@@ -399,10 +409,13 @@ var settingsModal = el('settingsModal');
   var savedScrape = localStorage.getItem(LS_SCRAPE_DATA);
   if (savedScrape) { try { buildScrapeMap(savedScrape); } catch(e) {} }
   var savedData = localStorage.getItem(LS_DATA);
+  var savedPending = localStorage.getItem(LS_PENDING);
+  if (savedPending) { try { pendingBarcodes = JSON.parse(savedPending); } catch(e) {} }
   if (savedData) {
     try {
       products = parseCSV(savedData);
       showMain();
+      updatePendingBadge();
       return;
     } catch(e) {}
   }
