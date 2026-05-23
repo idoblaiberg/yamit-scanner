@@ -900,6 +900,61 @@ function closeCam() {
   camOverlay.classList.remove('open');
 }
 
+function showScanPreview() {
+  var s = pendingScan;
+  el('snapImg').src = s.imageDataUrl;
+  if (s.barcode) {
+    el('snapBarcodeSection').className = 'snap-section snap-section-barcode';
+    el('snapBarcodeVal').className = 'snap-value';
+    el('snapBarcodeVal').textContent = s.barcode;
+  } else {
+    el('snapBarcodeSection').className = 'snap-section snap-section-empty';
+    el('snapBarcodeVal').className = 'snap-value-empty';
+    el('snapBarcodeVal').textContent = 'לא נמצא ברקוד';
+  }
+  el('snapOcrVal').textContent = s.ocrText || 'לא נמצא טקסט';
+  el('snapSaveBtn').style.display = 'none';
+  el('scanPreview').classList.add('open');
+}
+
+function hideScanPreview() {
+  el('scanPreview').classList.remove('open');
+}
+
+el('snapSearchBtn').addEventListener('click', function() {
+  var s = pendingScan;
+  if (!s) return;
+  if (s.barcode) {
+    hideScanPreview();
+    handleBarcode(s.barcode);
+  } else if (s.ocrText && s.ocrText.length >= 2) {
+    var res = doSearch(s.ocrText);
+    if (res && res.length) {
+      hideScanPreview();
+      searchInput.value = s.ocrText;
+      clearBtn.classList.add('on');
+      renderList(res, s.ocrText);
+      if (res.length === 1) openResult(res[0]);
+    } else {
+      showToast('לא נמצא');
+      el('snapSaveBtn').style.display = '';
+    }
+  } else {
+    showToast('לא נמצא מידע לחיפוש');
+    el('snapSaveBtn').style.display = '';
+  }
+});
+
+el('snapClose').addEventListener('click', function() {
+  pendingScan = null;
+  hideScanPreview();
+});
+
+el('snapSaveBtn').addEventListener('click', function() {
+  savePendingBarcode();
+  el('snapSaveBtn').style.display = 'none';
+});
+
 function handleBarcode(val) {
   var v = val.trim();
   var match = products.find(function(p) { return String(p[cols.id]  || '').trim() === v; })
