@@ -229,6 +229,14 @@
     .pc-price      { font-size: 13px; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
     .res-link      { color: #00d4aa; text-decoration: underline; cursor: pointer; font-size: 14px; font-weight: 600; word-break: break-all; }
     .modal-section { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; padding: 14px 0 6px; border-top: 1px solid #f3f4f6; margin-top: 4px; }
+    .modal-thumb-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .modal-thumb { width: 50px; height: 50px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: #f3f4f6; }
+    .modal-thumb-name { flex: 1; font-size: 18px; font-weight: 700; line-height: 1.3; }
+    .modal-rescan { background: none; border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 6px 10px; font-size: 18px; cursor: pointer; flex-shrink: 0; font-family: 'Heebo', sans-serif; }
+    .ocr-section { margin-top: 10px; padding: 10px 0 0; border-top: 1px solid #f3f4f6; }
+    .ocr-label { font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .ocr-text { font-size: 13px; color: #6b7280; line-height: 1.5; word-break: break-word; }
+    .link-barcode-btn { margin-top: 12px; width: 100%; padding: 10px; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; color: #16a34a; font-size: 14px; font-weight: 600; cursor: pointer; font-family: 'Heebo', sans-serif; }
     .scrape-count  { font-size: 12px; color: #16a34a; margin-top: 6px; }
   </style>
 </head>
@@ -792,9 +800,35 @@ function makeRow(label, valueText, valueBadge) {
 }
 
 function openResult(p) {
-  el('modalName').textContent = p[cols.name] || '—';
   var body = el('modalBody');
   body.textContent = '';
+  el('modalName').textContent = '';
+
+  if (pendingScan && pendingScan.imageDataUrl) {
+    var thumbRow = document.createElement('div');
+    thumbRow.className = 'modal-thumb-row';
+    var img = document.createElement('img');
+    img.className = 'modal-thumb';
+    img.src = pendingScan.imageDataUrl;
+    var nameDiv = document.createElement('div');
+    nameDiv.className = 'modal-thumb-name';
+    nameDiv.textContent = p[cols.name] || '—';
+    var rescanBtn = document.createElement('button');
+    rescanBtn.className = 'modal-rescan';
+    rescanBtn.textContent = '🔄';
+    rescanBtn.title = 'סרוק שוב';
+    rescanBtn.addEventListener('click', function() {
+      resultModal.classList.remove('open');
+      pendingScan = null;
+      openCam();
+    });
+    thumbRow.appendChild(img);
+    thumbRow.appendChild(nameDiv);
+    thumbRow.appendChild(rescanBtn);
+    body.appendChild(thumbRow);
+  } else {
+    el('modalName').textContent = p[cols.name] || '—';
+  }
 
   body.appendChild(makeRow('מספר פריט', p[cols.id] || '—'));
   if (p[cols.alt] && String(p[cols.alt]).trim()) {
@@ -808,36 +842,65 @@ function openResult(p) {
     sec.className = 'modal-section';
     sec.textContent = 'נתוני אתר';
     body.appendChild(sec);
-
-    var reg  = String(sd[scrapeCols.price]     || '').trim();
-    var sale = String(sd[scrapeCols.salePrice]  || '').trim();
-    if (reg)  body.appendChild(makeRow('מחיר רגיל',  '₪' + reg));
+    var reg  = String(sd[scrapeCols.price]    || '').trim();
+    var sale = String(sd[scrapeCols.salePrice] || '').trim();
+    if (reg)  body.appendChild(makeRow('מחיר רגיל', '₪' + reg));
     if (sale && sale !== reg && sale !== '0') body.appendChild(makeRow('מחיר מבצע', '₪' + sale));
-
     var onlineStock = String(sd[scrapeCols.stock] || '').trim();
     if (onlineStock) body.appendChild(makeRow('מלאי באתר', onlineStock));
-
     var f1 = String(sd[scrapeCols.feature1] || '').trim();
     var f2 = String(sd[scrapeCols.feature2] || '').trim();
     if (f1) body.appendChild(makeRow('תכונה 1', f1));
     if (f2) body.appendChild(makeRow('תכונה 2', f2));
-
     var productUrl = String(sd[scrapeCols.url] || '').trim();
     if (productUrl) {
-      var row = document.createElement('div');
-      row.className = 'res-row';
-      var lbl = document.createElement('span');
-      lbl.className = 'res-lbl';
-      lbl.textContent = 'קישור מוצר';
+      var urlRow = document.createElement('div');
+      urlRow.className = 'res-row';
+      var urlLbl = document.createElement('span');
+      urlLbl.className = 'res-lbl';
+      urlLbl.textContent = 'קישור מוצר';
       var link = document.createElement('a');
       link.className = 'res-link';
       link.textContent = 'פתח באתר ↗';
       link.href = productUrl;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
-      row.appendChild(lbl);
-      row.appendChild(link);
-      body.appendChild(row);
+      urlRow.appendChild(urlLbl);
+      urlRow.appendChild(link);
+      body.appendChild(urlRow);
+    }
+  }
+
+  if (pendingScan && pendingScan.ocrText) {
+    var ocrSec = document.createElement('div');
+    ocrSec.className = 'ocr-section';
+    var ocrLbl = document.createElement('div');
+    ocrLbl.className = 'ocr-label';
+    ocrLbl.textContent = 'טקסט מהתווית';
+    var ocrTxt = document.createElement('div');
+    ocrTxt.className = 'ocr-text';
+    ocrTxt.textContent = pendingScan.ocrText;
+    ocrSec.appendChild(ocrLbl);
+    ocrSec.appendChild(ocrTxt);
+    body.appendChild(ocrSec);
+  }
+
+  if (pendingScan && pendingScan.barcode) {
+    var unresolved = pendingBarcodes.filter(function(e) {
+      return e.resolvedSku === null && e.barcode === pendingScan.barcode;
+    });
+    if (unresolved.length > 0) {
+      var linkBtn = document.createElement('button');
+      linkBtn.className = 'link-barcode-btn';
+      linkBtn.textContent = '🔗 קשר ברקוד למוצר זה';
+      linkBtn.addEventListener('click', function() {
+        linkPendingToProduct(String(p[cols.id] || '').trim());
+        linkBtn.textContent = '✓ ברקוד קושר למוצר';
+        linkBtn.disabled = true;
+        showToast('ברקוד קושר למוצר ✓');
+        pendingScan = null;
+      });
+      body.appendChild(linkBtn);
     }
   }
 
