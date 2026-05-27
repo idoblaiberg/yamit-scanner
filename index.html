@@ -7,6 +7,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     html { height: 100%; }
@@ -153,12 +154,16 @@
       display: none; position: fixed; inset: 0;
       background: rgba(0,0,0,0.92); z-index: 300;
       flex-direction: column; align-items: center; justify-content: center;
+      overflow-y: auto; padding: 20px 0 32px;
     }
     #camOverlay.open { display: flex; }
+    #camVF  { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 500px; }
+    #camProc { display: none; flex-direction: column; align-items: center; gap: 18px; }
+    #camPrev { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 500px; gap: 14px; padding-bottom: 8px; }
     .cam-inner { position: relative; width: 100%; max-width: 500px; }
-    #video { width: 100%; display: block; }
+    #video { width: 100%; display: block; border-radius: 10px; }
     .scan-frame { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-    .frame-box { width: 240px; height: 158px; position: relative; }
+    .frame-box { width: 260px; height: 170px; position: relative; }
     .frame-box::before, .frame-box::after,
     .frame-box > i::before, .frame-box > i::after {
       content: ''; position: absolute; width: 28px; height: 28px;
@@ -170,10 +175,35 @@
     .frame-box > i::after  { bottom:0; left:0;  border-width:0 0 3px 3px; border-radius:0 0 0 6px; }
     .scan-line { position: absolute; left:8px; right:8px; height:2px; background:#00d4aa; box-shadow:0 0 8px #00d4aa; animation: sweep 2s ease-in-out infinite; }
     @keyframes sweep { 0%,100%{top:8px} 50%{top:calc(100% - 10px)} }
-    .cam-hint { color: rgba(255,255,255,0.5); font-size: 14px; margin-top: 24px; text-align: center; }
-    .cam-close { margin-top: 22px; padding: 12px 44px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; font-family: 'Heebo', sans-serif; font-size: 15px; border-radius: 50px; cursor: pointer; }
-    .cam-flash { position: absolute; inset: 0; background: rgba(0,212,170,0.22); display: none; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: #00d4aa; }
-    .cam-flash.on { display: flex; }
+    .cam-hint { color: rgba(255,255,255,0.55); font-size: 14px; margin-top: 18px; text-align: center; padding: 0 20px; line-height: 1.5; }
+    .cam-close { margin-top: 14px; padding: 11px 36px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; font-family: 'Heebo', sans-serif; font-size: 15px; border-radius: 50px; cursor: pointer; }
+    .cam-capture-btn {
+      margin-top: 18px; padding: 15px 52px;
+      background: #00d4aa; color: #0f2438;
+      font-family: 'Heebo', sans-serif; font-size: 18px; font-weight: 700;
+      border: none; border-radius: 50px; cursor: pointer;
+      box-shadow: 0 4px 22px rgba(0,212,170,0.45);
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .cam-capture-btn:active { opacity: 0.8; transform: scale(0.97); }
+    .cam-capture-btn:disabled { opacity: 0.35; pointer-events: none; }
+    #snapCanvas { width: 100%; border-radius: 10px; display: block; }
+    .prev-barcode {
+      background: rgba(0,212,170,0.15); border: 1px solid rgba(0,212,170,0.6);
+      color: #00d4aa; border-radius: 10px; padding: 10px 16px;
+      font-size: 17px; font-weight: 700; text-align: center;
+      font-family: monospace; letter-spacing: 1px;
+    }
+    .prev-nobarcode { color: rgba(255,255,255,0.4); font-size: 13px; text-align: center; }
+    .prev-ocr {
+      background: rgba(255,255,255,0.07); border-radius: 10px;
+      padding: 10px 14px; direction: ltr;
+    }
+    .prev-ocr p { color: rgba(255,255,255,0.78); font-size: 12px; margin-bottom: 3px; text-align: left; font-family: monospace; }
+    .prev-ocr-label { color: rgba(255,255,255,0.35); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .cam-prev-btns { display: flex; gap: 10px; width: 100%; padding: 0 16px; }
+    .cam-prev-btns .cam-close { flex: 1; margin-top: 0; }
+    .cam-prev-btns .cam-capture-btn { flex: 2; margin-top: 0; padding: 13px 20px; font-size: 16px; }
 
     /* ─── MODALS ──────────────────────────── */
     .backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: flex-end; justify-content: center; }
@@ -258,15 +288,37 @@
 
 <!-- CAMERA OVERLAY -->
 <div id="camOverlay">
-  <div class="cam-inner">
-    <video id="video" playsinline autoplay muted></video>
-    <div class="scan-frame">
-      <div class="frame-box"><i></i><div class="scan-line"></div></div>
+
+  <!-- ① VIEWFINDER -->
+  <div id="camVF">
+    <div class="cam-inner">
+      <video id="video" playsinline autoplay muted></video>
+      <div class="scan-frame">
+        <div class="frame-box"><i></i><div class="scan-line"></div></div>
+      </div>
     </div>
-    <div class="cam-flash" id="camFlash"></div>
+    <p class="cam-hint">כוון את התווית אל תוך המסגרת והחזק בשקט</p>
+    <button class="cam-capture-btn" id="camCapture">📸&#160;&#160;צלם</button>
+    <button class="cam-close" id="camClose">סגור</button>
   </div>
-  <div class="cam-hint">כוון את הברקוד לתוך המסגרת</div>
-  <button class="cam-close" id="camClose">סגור</button>
+
+  <!-- ② PROCESSING -->
+  <div id="camProc">
+    <div class="spinner" style="width:52px;height:52px;border-width:4px;border-top-color:#00d4aa;"></div>
+    <p class="cam-hint" style="opacity:1;">מנתח תמונה...</p>
+  </div>
+
+  <!-- ③ PREVIEW -->
+  <div id="camPrev">
+    <canvas id="snapCanvas"></canvas>
+    <div id="camPrevInfo" style="width:100%;padding:0 16px;display:flex;flex-direction:column;gap:10px;"></div>
+    <div class="cam-prev-btns">
+      <button class="cam-close" id="camRetake">↩ צלם מחדש</button>
+      <button class="cam-capture-btn" id="camContinue">המשך ←</button>
+    </div>
+    <button class="cam-close" id="camClose2">סגור</button>
+  </div>
+
 </div>
 
 <!-- RESULT MODAL -->
@@ -342,7 +394,6 @@ var resultsArea   = el('resultsArea');
 var setupError    = el('setupError');
 var loadingEl     = el('loading');
 var camOverlay    = el('camOverlay');
-var camFlash      = el('camFlash');
 var resultModal   = el('resultModal');
 var settingsModal = el('settingsModal');
 
@@ -643,103 +694,191 @@ function openResult(p) {
 }
 
 // ── Scanner ───────────────────────────────────────────────────────────────────
-var codeReader = null;
-var scanning   = false;
 var camStream  = null;
-var scanRAF    = null;
+var snapResult = null;
+var codeReader = null; // ZXing instance (fallback)
 
 el('scanBtn').addEventListener('click', openCam);
 el('camClose').addEventListener('click', closeCam);
+el('camClose2').addEventListener('click', closeCam);
+el('camCapture').addEventListener('click', captureFrame);
+el('camRetake').addEventListener('click', showViewfinder);
+el('camContinue').addEventListener('click', useCaptureResult);
+
+function camState(s) {
+  el('camVF').style.display   = s === 'vf'   ? 'flex' : 'none';
+  el('camProc').style.display = s === 'proc' ? 'flex' : 'none';
+  el('camPrev').style.display = s === 'prev' ? 'flex' : 'none';
+}
 
 function openCam() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showToast('המצלמה אינה נתמכת בדפדפן זה');
-    return;
+    showToast('המצלמה אינה נתמכת בדפדפן זה'); return;
   }
+  snapResult = null;
+  camState('vf');
   camOverlay.classList.add('open');
-  scanning = true;
 
-  if ('BarcodeDetector' in window) {
-    startNativeScan();
-  } else {
-    startZXingScan();
-  }
-}
-
-function startNativeScan() {
   navigator.mediaDevices.getUserMedia({
-    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
   }).then(function(stream) {
-    if (!scanning) { stream.getTracks().forEach(function(t){ t.stop(); }); return; }
     camStream = stream;
     var video = el('video');
     video.srcObject = stream;
     video.play();
-    var detector = new BarcodeDetector({
+  }).catch(function() {
+    closeCam();
+    showToast('אין גישה למצלמה. אנא אשר הרשאה בהגדרות.');
+  });
+}
+
+function showViewfinder() {
+  var video = el('video');
+  if (video && video.paused && camStream) video.play();
+  camState('vf');
+}
+
+function captureFrame() {
+  var video = el('video');
+  if (!video || !video.videoWidth) { showToast('המצלמה עדיין נטענת...'); return; }
+
+  video.pause(); // freeze live preview
+
+  var canvas = el('snapCanvas');
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+
+  camState('proc');
+  processCapture(canvas);
+}
+
+function processCapture(canvas) {
+  var barcode = null;
+  var ocrLines = [];
+
+  // ── Barcode detection ──────────────────────────────────────────────────────
+  var barcodeP;
+  if ('BarcodeDetector' in window) {
+    var det = new BarcodeDetector({
       formats: ['ean_13','ean_8','code_128','code_39','qr_code','upc_a','upc_e','itf','pdf417','data_matrix','aztec']
     });
-    function tick() {
-      if (!scanning) return;
-      if (video.readyState < 2) { scanRAF = requestAnimationFrame(tick); return; }
-      detector.detect(video).then(function(codes) {
-        if (!scanning) return;
-        if (codes.length) {
-          onBarcodeFound(codes[0].rawValue);
-        } else {
-          scanRAF = requestAnimationFrame(tick);
-        }
-      }).catch(function() {
-        if (scanning) scanRAF = requestAnimationFrame(tick);
-      });
-    }
-    scanRAF = requestAnimationFrame(tick);
-  }).catch(function() {
-    scanning = false;
-    camOverlay.classList.remove('open');
-    showToast('אין גישה למצלמה. אנא אשר הרשאה בהגדרות.');
+    barcodeP = det.detect(canvas).then(function(codes) {
+      if (codes.length) barcode = codes[0].rawValue;
+    }).catch(function(){});
+  } else if (typeof ZXing !== 'undefined') {
+    var img = document.createElement('img');
+    barcodeP = new Promise(function(resolve) {
+      img.onload = function() {
+        codeReader = new ZXing.BrowserMultiFormatReader();
+        codeReader.decodeFromImage(img).then(function(res) {
+          if (res) barcode = res.getText();
+          resolve();
+        }).catch(resolve);
+      };
+      img.src = canvas.toDataURL('image/jpeg', 0.92);
+    });
+  } else {
+    barcodeP = Promise.resolve();
+  }
+
+  // ── OCR (Tesseract) ────────────────────────────────────────────────────────
+  var ocrP;
+  if (typeof Tesseract !== 'undefined') {
+    ocrP = Tesseract.recognize(canvas, 'eng').then(function(r) {
+      ocrLines = r.data.text.split('\n')
+        .map(function(l) { return l.trim(); })
+        .filter(function(l) { return l.length > 2; });
+    }).catch(function(){});
+  } else {
+    ocrP = Promise.resolve();
+  }
+
+  Promise.all([barcodeP, ocrP]).then(function() {
+    snapResult = { barcode: barcode, texts: ocrLines };
+    renderPreview(snapResult);
+    camState('prev');
   });
 }
 
-function startZXingScan() {
-  if (typeof ZXing === 'undefined') {
-    scanning = false;
-    camOverlay.classList.remove('open');
-    showToast('ספריית הסריקה עדיין נטענת...');
+function renderPreview(result) {
+  var info = el('camPrevInfo');
+  info.textContent = '';
+
+  // Barcode row
+  if (result.barcode) {
+    var bDiv = document.createElement('div');
+    bDiv.className = 'prev-barcode';
+    bDiv.textContent = '📦  ' + result.barcode;
+    info.appendChild(bDiv);
+  } else {
+    var nDiv = document.createElement('div');
+    nDiv.className = 'prev-nobarcode';
+    nDiv.textContent = 'ברקוד לא זוהה בתמונה';
+    info.appendChild(nDiv);
+  }
+
+  // OCR text block
+  if (result.texts.length) {
+    var label = document.createElement('div');
+    label.className = 'prev-ocr-label';
+    label.style.color = 'rgba(255,255,255,0.35)';
+    label.style.fontSize = '11px';
+    label.style.textTransform = 'uppercase';
+    label.style.letterSpacing = '0.5px';
+    label.style.paddingRight = '2px';
+    label.textContent = 'טקסט שזוהה';
+    info.appendChild(label);
+
+    var tDiv = document.createElement('div');
+    tDiv.className = 'prev-ocr';
+    result.texts.slice(0, 8).forEach(function(line) {
+      var p = document.createElement('p');
+      p.textContent = line;
+      tDiv.appendChild(p);
+    });
+    info.appendChild(tDiv);
+  }
+
+  // Continue button state
+  var cont = el('camContinue');
+  var hasData = !!(result.barcode || result.texts.length);
+  cont.disabled = !hasData;
+}
+
+function useCaptureResult() {
+  if (!snapResult) return;
+  closeCam();
+
+  if (snapResult.barcode) {
+    handleBarcode(snapResult.barcode);
     return;
   }
-  codeReader = new ZXing.BrowserMultiFormatReader();
-  ZXing.BrowserMultiFormatReader.listVideoInputDevices().then(function(devices) {
-    if (!scanning) return;
-    var back = devices.find(function(d) { return /back|rear|environment/i.test(d.label); });
-    var deviceId = (back || devices[devices.length - 1] || {}).deviceId || null;
-    return codeReader.decodeFromVideoDevice(deviceId, 'video', function(result) {
-      if (result && scanning) onBarcodeFound(result.getText());
-    });
-  }).catch(function() {
-    closeCam();
-    showToast('אין גישה למצלמה. אנא אשר הרשאה בהגדרות.');
-  });
-}
 
-function onBarcodeFound(val) {
-  if (!scanning) return;
-  scanning = false;
-  camFlash.textContent = '✓  ' + val;
-  camFlash.classList.add('on');
-  setTimeout(function() {
-    camFlash.classList.remove('on');
-    closeCam();
-    handleBarcode(val);
-  }, 600);
+  // No barcode — search with the longest OCR line (likely the product name)
+  if (snapResult.texts.length) {
+    var best = snapResult.texts.reduce(function(a, b) {
+      return b.length > a.length ? b : a;
+    }, '');
+    searchInput.value = best;
+    clearBtn.classList.add('on');
+    var res = doSearch(best);
+    if (res && res.length) {
+      renderList(res, best);
+      if (res.length === 1) openResult(res[0]);
+    } else {
+      showToast('לא נמצא: ' + best);
+    }
+  }
 }
 
 function closeCam() {
-  scanning = false;
-  if (scanRAF) { cancelAnimationFrame(scanRAF); scanRAF = null; }
   if (codeReader) { try { codeReader.reset(); } catch(e){} codeReader = null; }
-  if (camStream) { camStream.getTracks().forEach(function(t){ t.stop(); }); camStream = null; }
+  if (camStream)  { camStream.getTracks().forEach(function(t){ t.stop(); }); camStream = null; }
   var video = el('video');
   if (video) { video.srcObject = null; }
+  snapResult = null;
+  camState('vf');
   camOverlay.classList.remove('open');
 }
 

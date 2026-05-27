@@ -72,20 +72,36 @@ If your spreadsheet uses different column names, go to **⚙️ הגדרות →
 
 Tap the green camera button next to the search box.
 
-**How detection works:**
+### UX flow
 
-1. **Native `BarcodeDetector`** (Chrome 83+ on Android, Chrome 88+ on desktop) — fastest, most reliable. Runs a `requestAnimationFrame` decode loop directly on the video feed. Supports EAN-13, EAN-8, Code 128, Code 39, QR, UPC-A/E, ITF, PDF417, Data Matrix, Aztec.
+1. **Viewfinder** — live camera feed with a corner frame guide. Hint text prompts the user to hold the label steady inside the frame.
+2. **Tap 📸 צלם** — freezes the frame and captures a still image.
+3. **Processing** — barcode detection and OCR run in parallel on the captured image.
+4. **Preview** — shows the snapshot with:
+   - Detected barcode value (green badge), or "ברקוד לא זוהה" if none found
+   - Extracted text lines from the label (Tesseract OCR)
+5. **↩ צלם מחדש** — resumes the live feed for another attempt.
+6. **המשך ←** — closes the camera and runs the match/search flow.
 
-2. **ZXing fallback** (`@zxing/library@0.19.1`) — used on browsers without `BarcodeDetector`. Enumerates camera devices and selects the back camera by label before starting the decode loop.
+### Detection engines
 
-On first camera use the browser will ask for permission — tap **Allow**.
+| Engine | When used | Notes |
+|---|---|---|
+| Native `BarcodeDetector` | Chrome 83+ / Android 9+ | Fastest; decodes the frozen canvas frame |
+| ZXing `@0.19.1` | Browsers without `BarcodeDetector` | Decodes from captured image element |
+| Tesseract.js `@4` | Always (parallel with barcode) | Extracts label text for text-search fallback |
 
-**Matching logic after a scan:**
+Supported formats: EAN-13, EAN-8, Code 128, Code 39, QR, UPC-A/E, ITF, PDF417, Data Matrix, Aztec.
 
-- Exact match on `מספר פריט` → open result immediately
-- Exact match on `מספר חליפי` → open result immediately
-- Partial text search → show list (auto-open if only one result)
-- No match → toast notification
+On first camera use the browser will ask for permission — tap **Allow**. HTTPS required.
+
+### Match priority after capture
+
+1. Exact match on `ברקוד` (EAN) → open product immediately
+2. Exact match on `מספר פריט` → open product immediately
+3. Exact match on `מספר חליפי` → open product immediately
+4. Longest OCR text line used as search query → show results list
+5. Nothing found → toast notification
 
 ---
 
@@ -124,11 +140,13 @@ index.html
     ├── doSearch()      fuzzy substring search across three columns
     ├── renderList()    DOM card builder for results
     ├── openResult()    product detail bottom sheet
-    ├── openCam()       scanner entry point
-    │   ├── startNativeScan()   BarcodeDetector + rAF loop
-    │   └── startZXingScan()    ZXing device enumeration + decode loop
-    ├── onBarcodeFound()        flash feedback → closeCam → handleBarcode
-    ├── handleBarcode()         match / search / toast
+    ├── openCam()           open camera → viewfinder state
+    ├── captureFrame()      freeze video → draw canvas → processCapture()
+    ├── processCapture()    BarcodeDetector + Tesseract in parallel
+    ├── renderPreview()     show snapshot + barcode badge + OCR lines
+    ├── useCaptureResult()  barcode → handleBarcode / OCR → doSearch
+    ├── showViewfinder()    resume video → back to viewfinder state
+    ├── handleBarcode()     exact match / search / toast
     └── Settings modal          column remapping, data reload, reset
 ```
 
@@ -136,8 +154,9 @@ index.html
 
 | Library | Version | Purpose |
 |---|---|---|
-| `@zxing/library` | 0.19.1 | Barcode decoding fallback |
+| `@zxing/library` | 0.19.1 | Barcode decoding (fallback for non-Chrome browsers) |
 | `PapaParse` | 5.4.1 | CSV parsing |
+| `Tesseract.js` | 4.x | OCR — extract text from captured label image |
 | Google Fonts — Heebo | latest | Hebrew typeface |
 
 ---
