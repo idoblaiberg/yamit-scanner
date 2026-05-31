@@ -927,6 +927,25 @@ function captureFrame() {
 }
 
 function decodeBarcode(imageDataUrl) {
+  if ('BarcodeDetector' in window) {
+    var img = new Image();
+    return new Promise(function(resolve) {
+      img.onload = function() {
+        var canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        var det = new BarcodeDetector({
+          formats: ['ean_13','ean_8','code_128','code_39','qr_code','upc_a','upc_e','itf','pdf417','data_matrix','aztec']
+        });
+        det.detect(canvas).then(function(codes) {
+          resolve(codes.length ? codes[0].rawValue : null);
+        }).catch(function() { resolve(null); });
+      };
+      img.onerror = function() { resolve(null); };
+      img.src = imageDataUrl;
+    });
+  }
   var reader = new ZXing.BrowserMultiFormatReader();
   return reader.decodeFromImageUrl(imageDataUrl)
     .then(function(r) { return r.getText(); })
@@ -935,7 +954,7 @@ function decodeBarcode(imageDataUrl) {
 
 function extractOCR(imageDataUrl) {
   if (typeof Tesseract === 'undefined') return Promise.resolve('');
-  return Tesseract.recognize(imageDataUrl, 'heb+eng')
+  return Tesseract.recognize(imageDataUrl, 'eng')
     .then(function(r) { return (r.data.text || '').trim(); })
     .catch(function() { return ''; });
 }
