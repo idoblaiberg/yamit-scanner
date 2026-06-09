@@ -110,22 +110,27 @@
       align-items: center; justify-content: center;
       pointer-events: none; z-index: 15;
     }
-    .frame-box { width: 260px; height: 160px; position: relative; overflow: hidden; }
-    .frame-box::before, .frame-box::after,
-    .frame-box > i::before, .frame-box > i::after {
-      content: ''; position: absolute; width: 32px; height: 32px;
-      border-color: #00d4aa; border-style: solid;
+    .frame-box { width: 82vw; max-width: 340px; height: 32px; position: relative; }
+    /* Horizontal beam */
+    .frame-box::before {
+      content: ''; position: absolute;
+      left: 0; right: 0; top: 50%; height: 2px; transform: translateY(-50%);
+      background: #00d4aa;
+      box-shadow: 0 0 10px rgba(0,212,170,0.8);
+      animation: beamPulse 1.6s ease-in-out infinite;
     }
-    .frame-box::before  { top:0; right:0; border-width:3px 3px 0 0; border-radius:0 8px 0 0; }
-    .frame-box::after   { top:0; left:0;  border-width:3px 0 0 3px; border-radius:8px 0 0 0; }
-    .frame-box > i::before { bottom:0; right:0; border-width:0 3px 3px 0; border-radius:0 0 8px 0; }
-    .frame-box > i::after  { bottom:0; left:0;  border-width:0 0 3px 3px; border-radius:0 0 0 8px; }
+    /* Left tick */
+    .frame-box::after {
+      content: ''; position: absolute;
+      left: 0; top: 0; bottom: 0; width: 2px; background: #00d4aa;
+    }
+    /* Right tick */
+    .frame-box > i { display: block; position: absolute; right: 0; top: 0; bottom: 0; width: 2px; background: #00d4aa; }
+    .frame-box > i::before, .frame-box > i::after { display: none; }
 
-    @keyframes scanLine { 0%{top:0} 50%{top:100%} 100%{top:0} }
-    .scan-anim {
-      position: absolute; left: 0; right: 0; height: 2px;
-      background: linear-gradient(to right, transparent 0%, #00d4aa 50%, transparent 100%);
-      animation: scanLine 2s ease-in-out infinite;
+    @keyframes beamPulse {
+      0%, 100% { opacity: 0.5; box-shadow: 0 0 5px rgba(0,212,170,0.3); }
+      50%       { opacity: 1;   box-shadow: 0 0 14px rgba(0,212,170,1); }
     }
     .scan-hint {
       color: rgba(255,255,255,0.65); font-size: 14px;
@@ -143,14 +148,11 @@
     .scan-status.paused .scan-dot { animation: none; background: rgba(255,255,255,0.3); }
     .scan-status.paused { color: rgba(255,255,255,0.3); }
 
-    @keyframes frameFlash {
-      0%   { border-color: #00d4aa; filter: drop-shadow(0 0 8px #00d4aa); }
-      100% { border-color: #00d4aa; filter: none; }
+    @keyframes lineFlash {
+      0%   { filter: brightness(4) drop-shadow(0 0 10px white); }
+      100% { filter: none; }
     }
-    .frame-box.flash::before, .frame-box.flash::after,
-    .frame-box.flash > i::before, .frame-box.flash > i::after {
-      animation: frameFlash 0.45s ease forwards;
-    }
+    .frame-box.flash { animation: lineFlash 0.4s ease forwards; }
 
     /* Result overlay */
     #resultOverlay {
@@ -351,11 +353,8 @@
   </div>
 
   <div id="scannerFrame">
-    <div class="frame-box" id="frameBox">
-      <i></i>
-      <div class="scan-anim"></div>
-    </div>
-    <div class="scan-hint">כוון את הברקוד למסגרת</div>
+    <div class="frame-box" id="frameBox"><i></i></div>
+    <div class="scan-hint">כוון את הברקוד לקו הסריקה</div>
     <div class="scan-status paused" id="scanStatus">
       <span class="scan-dot"></span>
       <span id="scanStatusText">מאתחל...</span>
