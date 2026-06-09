@@ -7,50 +7,27 @@
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-    html { height: 100%; }
-    body {
-      font-family: 'Heebo', sans-serif;
-      background: #f0f4f8;
-      color: #1a2332;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
+    html, body { height: 100%; overflow: hidden; }
+    body { font-family: 'Heebo', sans-serif; background: #000; color: #1a2332; }
 
-    /* ─── HEADER ──────────────────────────── */
-    .app-header {
-      background: #0f2438; color: white;
-      padding: 14px 20px; display: flex;
-      align-items: center; justify-content: space-between;
-      flex-shrink: 0;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.25); z-index: 10;
+    /* ─── SETUP SCREEN ─────────────────────────────────── */
+    #setupScreen {
+      display: none; position: fixed; inset: 0; background: #f0f4f8;
+      overflow-y: auto; z-index: 10;
+      flex-direction: column; align-items: center; justify-content: flex-start;
+      padding: 32px 20px 40px;
     }
-    .header-logo { font-size: 18px; font-weight: 700; color: #00d4aa; }
-    .header-logo span { color: rgba(255,255,255,0.65); font-weight: 400; font-size: 14px; }
-    .icon-btn {
-      background: none; border: none; color: rgba(255,255,255,0.75);
-      font-size: 22px; cursor: pointer; padding: 5px; border-radius: 8px;
-    }
-    .icon-btn:active { background: rgba(255,255,255,0.12); }
+    #setupScreen.active { display: flex; }
 
-    /* ─── SCREENS ─────────────────────────── */
-    .screen { display: none; flex: 1; overflow: hidden; }
-    .screen.active { display: flex; flex-direction: column; }
-    #setupScreen { overflow-y: auto; align-items: center; justify-content: flex-start; padding: 32px 20px 40px; }
-
-    /* ─── SETUP ───────────────────────────── */
     .setup-card {
       background: white; border-radius: 20px; padding: 32px 24px;
-      width: 100%; max-width: 440px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      width: 100%; max-width: 440px; box-shadow: 0 4px 24px rgba(0,0,0,0.08);
     }
-    .setup-icon { text-align: center; font-size: 52px; margin-bottom: 16px; }
+    .setup-icon  { text-align: center; font-size: 52px; margin-bottom: 16px; }
     .setup-title { text-align: center; font-size: 22px; font-weight: 700; margin-bottom: 6px; }
-    .setup-sub { text-align: center; font-size: 14px; color: #6b7280; margin-bottom: 28px; }
+    .setup-sub   { text-align: center; font-size: 14px; color: #6b7280; margin-bottom: 28px; }
 
     .field-label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
     .text-input {
@@ -63,17 +40,22 @@
     .text-input:focus { border-color: #00d4aa; }
     .text-input[dir="rtl"] { direction: rtl; text-align: right; }
 
-    .btn { display: block; width: 100%; padding: 13px; margin-top: 10px; border-radius: 10px; font-family: 'Heebo', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; border: none; transition: opacity 0.15s, transform 0.1s; }
+    .btn {
+      display: block; width: 100%; padding: 13px; margin-top: 10px;
+      border-radius: 10px; font-family: 'Heebo', sans-serif; font-size: 15px;
+      font-weight: 600; cursor: pointer; border: none;
+      transition: opacity 0.15s, transform 0.1s;
+    }
     .btn:active { opacity: 0.82; transform: scale(0.98); }
-    .btn-primary { background: #00d4aa; color: #0f2438; font-size: 16px; }
+    .btn-primary   { background: #00d4aa; color: #0f2438; font-size: 16px; }
     .btn-secondary { background: #f9fafb; color: #374151; border: 1.5px dashed #d1d5db; }
-    .btn-secondary:active { background: #f3f4f6; }
-    .btn-ghost { background: #f3f4f6; color: #374151; }
-    .btn-ghost:active { background: #e5e7eb; }
-    .btn-danger { background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; }
-    .btn-danger:active { background: #fee2e2; }
+    .btn-ghost     { background: #f3f4f6; color: #374151; }
+    .btn-danger    { background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; }
 
-    .divider { display: flex; align-items: center; gap: 12px; margin: 22px 0; color: #9ca3af; font-size: 13px; }
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 22px 0; color: #9ca3af; font-size: 13px;
+    }
     .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
 
     .error-box {
@@ -83,154 +65,192 @@
     }
     .error-box.on { display: block; }
 
-    /* ─── MAIN SCREEN ─────────────────────── */
-    .stats-bar {
-      background: white; border-bottom: 1px solid #e5e7eb;
-      padding: 8px 20px; font-size: 13px; color: #6b7280;
-      display: flex; gap: 20px; flex-shrink: 0;
+    /* ─── SCANNER SCREEN ───────────────────────────────── */
+    #scannerScreen {
+      display: none; position: fixed; inset: 0;
+      background: #000; overflow: hidden;
     }
-    .stats-bar strong { color: #1a2332; }
+    #scannerScreen.active { display: block; }
 
-    .search-row { padding: 14px 16px 8px; display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
-    .search-wrap { position: relative; flex: 1; }
-    .search-input {
-      width: 100%; padding: 12px 42px 12px 14px;
-      border: 1.5px solid #d1d5db; border-radius: 12px;
-      font-family: 'Heebo', sans-serif; font-size: 16px;
-      background: white; outline: none; color: #1a2332;
-      transition: border-color 0.2s; direction: rtl;
+    #video {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
     }
-    .search-input:focus { border-color: #00d4aa; }
-    .s-icon { position: absolute; right: 13px; top: 50%; transform: translateY(-50%); font-size: 17px; pointer-events: none; }
-    .clear-btn {
-      position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
-      background: #e5e7eb; border: none; width: 22px; height: 22px;
-      border-radius: 50%; font-size: 11px; cursor: pointer; color: #6b7280;
-      display: none; align-items: center; justify-content: center;
+
+    /* Top bar */
+    #scannerTopBar {
+      position: absolute; top: 0; left: 0; right: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px;
+      padding-top: max(14px, env(safe-area-inset-top, 14px));
+      background: linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, transparent 100%);
+      z-index: 20;
     }
-    .clear-btn.on { display: flex; }
-
-    .cam-btn {
-      background: #00d4aa; border: none; width: 48px; height: 48px;
-      border-radius: 12px; cursor: pointer; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 2px 10px rgba(0,212,170,0.3); transition: opacity 0.15s;
+    .scanner-logo { font-size: 16px; font-weight: 700; color: #00d4aa; }
+    .scanner-logo span { color: rgba(255,255,255,0.55); font-weight: 400; font-size: 13px; }
+    .top-actions { display: flex; gap: 8px; align-items: center; }
+    .icon-btn {
+      background: rgba(0,0,0,0.4); border: none; color: white;
+      font-size: 20px; cursor: pointer; padding: 8px; border-radius: 10px;
+      position: relative; line-height: 1;
     }
-    .cam-btn:active { opacity: 0.8; }
-
-    .results-area { flex: 1; overflow-y: auto; padding: 6px 16px 32px; -webkit-overflow-scrolling: touch; }
-
-    .res-count { font-size: 13px; color: #9ca3af; text-align: center; padding: 8px 0 12px; }
-
-    .product-card {
-      background: white; border: 1.5px solid #e5e7eb; border-radius: 14px;
-      padding: 14px 16px; margin-bottom: 10px; cursor: pointer;
-      transition: border-color 0.15s, box-shadow 0.15s;
-      animation: slideUp 0.18s ease both;
+    .icon-btn:active { background: rgba(255,255,255,0.15); }
+    .pending-badge {
+      position: absolute; top: -4px; left: -4px;
+      background: #dc2626; color: white; border-radius: 50%;
+      width: 16px; height: 16px; font-size: 10px;
+      display: flex; align-items: center; justify-content: center; font-weight: 700;
     }
-    .product-card:active { border-color: #00d4aa; box-shadow: 0 0 0 3px rgba(0,212,170,0.12); }
-    @keyframes slideUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
 
-    .pc-name { font-size: 15px; font-weight: 600; margin-bottom: 7px; line-height: 1.35; }
-    .pc-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .pc-sku { font-size: 12px; color: #9ca3af; font-family: monospace; }
+    /* Viewfinder */
+    #scannerFrame {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      pointer-events: none; z-index: 15;
+    }
+    .frame-box { width: 260px; height: 160px; position: relative; overflow: hidden; }
+    .frame-box::before, .frame-box::after,
+    .frame-box > i::before, .frame-box > i::after {
+      content: ''; position: absolute; width: 32px; height: 32px;
+      border-color: #00d4aa; border-style: solid;
+    }
+    .frame-box::before  { top:0; right:0; border-width:3px 3px 0 0; border-radius:0 8px 0 0; }
+    .frame-box::after   { top:0; left:0;  border-width:3px 0 0 3px; border-radius:8px 0 0 0; }
+    .frame-box > i::before { bottom:0; right:0; border-width:0 3px 3px 0; border-radius:0 0 8px 0; }
+    .frame-box > i::after  { bottom:0; left:0;  border-width:0 0 3px 3px; border-radius:0 0 0 8px; }
 
-    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+    @keyframes scanLine { 0%{top:0} 50%{top:100%} 100%{top:0} }
+    .scan-anim {
+      position: absolute; left: 0; right: 0; height: 2px;
+      background: linear-gradient(to right, transparent 0%, #00d4aa 50%, transparent 100%);
+      animation: scanLine 2s ease-in-out infinite;
+    }
+    .scan-hint {
+      color: rgba(255,255,255,0.65); font-size: 14px;
+      margin-top: 22px; text-align: center;
+    }
+
+    /* Result overlay */
+    #resultOverlay {
+      display: none; position: absolute; bottom: 0; left: 0; right: 0;
+      z-index: 25;
+      background: linear-gradient(to top, rgba(0,0,0,0.97) 0%, rgba(0,0,0,0.88) 100%);
+      padding: 24px 24px;
+      padding-bottom: max(28px, env(safe-area-inset-bottom, 28px));
+      animation: sheetUp 0.22s ease;
+    }
+    #resultOverlay.show { display: block; }
+
+    .overlay-barcode-label {
+      font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.4);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      font-family: monospace; margin-bottom: 4px;
+    }
+    .overlay-barcode-val {
+      font-size: 13px; font-family: monospace; color: rgba(255,255,255,0.7);
+      margin-bottom: 14px; word-break: break-all;
+    }
+    .overlay-status { font-size: 20px; font-weight: 700; margin-bottom: 20px; line-height: 1.3; }
+    .overlay-status.found    { color: #00d4aa; }
+    .overlay-status.notfound { color: #f59e0b; }
+    .overlay-actions { display: flex; gap: 10px; }
+    .overlay-btn {
+      flex: 1; padding: 13px; border-radius: 12px;
+      font-family: 'Heebo', sans-serif; font-size: 15px; font-weight: 600;
+      cursor: pointer; border: none;
+    }
+    .overlay-btn-secondary {
+      background: rgba(255,255,255,0.1); color: white;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    .overlay-btn-primary { background: #00d4aa; color: #0f2438; }
+
+    /* ─── BOTTOM SHEETS ────────────────────────────────── */
+    .sheet-backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5); z-index: 100;
+      align-items: flex-end; justify-content: center;
+    }
+    .sheet-backdrop.open { display: flex; }
+    .sheet {
+      background: white; border-radius: 20px 20px 0 0;
+      padding: 8px 24px;
+      padding-bottom: max(40px, env(safe-area-inset-bottom, 40px));
+      width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto;
+      animation: sheetUp 0.22s ease;
+    }
+    @keyframes sheetUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+    .handle {
+      width: 40px; height: 4px; background: #d1d5db;
+      border-radius: 2px; margin: 14px auto 20px;
+    }
+
+    /* Product sheet */
+    .sheet-title  { font-size: 20px; font-weight: 700; margin-bottom: 16px; line-height: 1.3; }
+    .res-row      { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid #f3f4f6; }
+    .res-row:last-of-type { border-bottom: none; }
+    .res-lbl      { font-size: 13px; color: #6b7280; }
+    .res-val      { font-size: 14px; font-weight: 600; font-family: monospace; color: #1a2332; }
+    .modal-section { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; padding: 14px 0 6px; border-top: 1px solid #f3f4f6; margin-top: 4px; }
+    .res-link     { color: #00d4aa; text-decoration: underline; cursor: pointer; font-size: 14px; font-weight: 600; word-break: break-all; }
+    .price-regular { font-family: monospace; color: #1a2332; font-size: 13px; }
+    .price-sale    { font-family: monospace; color: #16a34a; font-size: 13px; font-weight: 700; }
+    .price-was     { font-family: monospace; color: #9ca3af; font-size: 12px; text-decoration: line-through; margin-left: 5px; }
+
+    /* Badges */
+    .badge      { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 13px; font-weight: 600; }
     .badge-pos  { background: #dcfce7; color: #16a34a; }
     .badge-zero { background: #f3f4f6; color: #6b7280; }
     .badge-neg  { background: #fef2f2; color: #dc2626; }
-    .bdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .bdot       { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
     .badge-pos  .bdot { background: #22c55e; }
     .badge-zero .bdot { background: #9ca3af; }
     .badge-neg  .bdot { background: #ef4444; }
 
-    .empty { text-align: center; padding: 60px 20px; color: #9ca3af; animation: slideUp 0.2s ease; }
-    .empty-icon { font-size: 48px; margin-bottom: 14px; }
-    .empty h3 { font-size: 17px; font-weight: 600; color: #6b7280; margin-bottom: 8px; }
-    .empty p  { font-size: 14px; line-height: 1.6; }
+    /* Link sheet */
+    .link-sub     { font-size: 13px; color: #6b7280; margin-bottom: 16px; font-family: monospace; word-break: break-all; }
+    .link-search-wrap { position: relative; margin-bottom: 12px; }
+    .link-search-input {
+      width: 100%; padding: 12px 14px 12px 40px;
+      border: 1.5px solid #d1d5db; border-radius: 12px;
+      font-family: 'Heebo', sans-serif; font-size: 15px;
+      background: white; outline: none; color: #1a2332;
+      direction: rtl; transition: border-color 0.2s;
+    }
+    .link-search-input:focus { border-color: #00d4aa; }
+    .link-search-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); font-size: 16px; pointer-events: none; }
+    .link-results { max-height: 280px; overflow-y: auto; margin-bottom: 12px; -webkit-overflow-scrolling: touch; }
+    .link-product-row {
+      padding: 12px 0; border-bottom: 1px solid #f3f4f6;
+      cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+    }
+    .link-product-row:active { background: #f9fafb; margin: 0 -8px; padding: 12px 8px; border-radius: 8px; }
+    .link-product-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .link-product-sku  { font-size: 12px; color: #9ca3af; font-family: monospace; }
+    .link-empty { text-align: center; padding: 32px 0; color: #9ca3af; font-size: 14px; }
 
-    /* ─── CAMERA ──────────────────────────── */
-    #camOverlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.92); z-index: 300;
-      flex-direction: column; align-items: center; justify-content: center;
-      overflow-y: auto; padding: 20px 0 32px;
-    }
-    #camOverlay.open { display: flex; }
-    #camVF  { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 500px; }
-    #camProc { display: none; flex-direction: column; align-items: center; gap: 18px; }
-    #camPrev { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 500px; gap: 14px; padding-bottom: 8px; }
-    .cam-inner { position: relative; width: 100%; max-width: 500px; }
-    #video { width: 100%; display: block; border-radius: 10px; }
-    .scan-frame { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-    .frame-box { width: 260px; height: 170px; position: relative; }
-    .frame-box::before, .frame-box::after,
-    .frame-box > i::before, .frame-box > i::after {
-      content: ''; position: absolute; width: 28px; height: 28px;
-      border-color: #00d4aa; border-style: solid;
-    }
-    .frame-box::before  { top:0; right:0; border-width:3px 3px 0 0; border-radius:0 6px 0 0; }
-    .frame-box::after   { top:0; left:0;  border-width:3px 0 0 3px; border-radius:6px 0 0 0; }
-    .frame-box > i::before { bottom:0; right:0; border-width:0 3px 3px 0; border-radius:0 0 6px 0; }
-    .frame-box > i::after  { bottom:0; left:0;  border-width:0 0 3px 3px; border-radius:0 0 0 6px; }
-    .scan-line { position: absolute; left:8px; right:8px; height:2px; background:#00d4aa; box-shadow:0 0 8px #00d4aa; animation: sweep 2s ease-in-out infinite; }
-    @keyframes sweep { 0%,100%{top:8px} 50%{top:calc(100% - 10px)} }
-    .cam-hint { color: rgba(255,255,255,0.55); font-size: 14px; margin-top: 18px; text-align: center; padding: 0 20px; line-height: 1.5; }
-    .cam-close { margin-top: 14px; padding: 11px 36px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; font-family: 'Heebo', sans-serif; font-size: 15px; border-radius: 50px; cursor: pointer; }
-    .cam-capture-btn {
-      margin-top: 18px; padding: 15px 52px;
-      background: #00d4aa; color: #0f2438;
-      font-family: 'Heebo', sans-serif; font-size: 18px; font-weight: 700;
-      border: none; border-radius: 50px; cursor: pointer;
-      box-shadow: 0 4px 22px rgba(0,212,170,0.45);
-      transition: opacity 0.15s, transform 0.1s;
-    }
-    .cam-capture-btn:active { opacity: 0.8; transform: scale(0.97); }
-    .cam-capture-btn:disabled { opacity: 0.35; pointer-events: none; }
-    #snapCanvas { width: 100%; border-radius: 10px; display: block; }
-    .prev-barcode {
-      background: rgba(0,212,170,0.15); border: 1px solid rgba(0,212,170,0.6);
-      color: #00d4aa; border-radius: 10px; padding: 10px 16px;
-      font-size: 17px; font-weight: 700; text-align: center;
-      font-family: monospace; letter-spacing: 1px;
-    }
-    .prev-nobarcode { color: rgba(255,255,255,0.4); font-size: 13px; text-align: center; }
-    .prev-ocr {
-      background: rgba(255,255,255,0.07); border-radius: 10px;
-      padding: 10px 14px; direction: ltr;
-    }
-    .prev-ocr p { color: rgba(255,255,255,0.78); font-size: 12px; margin-bottom: 3px; text-align: left; font-family: monospace; }
-    .prev-ocr-label { color: rgba(255,255,255,0.35); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-    .cam-prev-btns { display: flex; gap: 10px; width: 100%; padding: 0 16px; }
-    .cam-prev-btns .cam-close { flex: 1; margin-top: 0; }
-    .cam-prev-btns .cam-capture-btn { flex: 2; margin-top: 0; padding: 13px 20px; font-size: 16px; }
-
-    /* ─── MODALS ──────────────────────────── */
-    .backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: flex-end; justify-content: center; }
-    .backdrop.open { display: flex; }
-    .sheet { background: white; border-radius: 20px 20px 0 0; padding: 8px 24px 40px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; animation: sheetUp 0.22s ease; }
-    @keyframes sheetUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
-    .handle { width: 40px; height: 4px; background: #d1d5db; border-radius: 2px; margin: 14px auto 20px; }
-
-    .res-name { font-size: 20px; font-weight: 700; margin-bottom: 16px; line-height: 1.3; }
-    .res-row { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid #f3f4f6; }
-    .res-row:last-of-type { border-bottom: none; }
-    .res-lbl { font-size: 13px; color: #6b7280; }
-    .res-val { font-size: 14px; font-weight: 600; font-family: monospace; color: #1a2332; }
-
+    /* Settings */
     .settings-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
-    .section-lbl { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; margin-top: 24px; }
+    .section-lbl    { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; margin-top: 24px; }
+    .scrape-count   { font-size: 12px; color: #16a34a; margin-top: 6px; }
     .gap8 { margin-bottom: 8px; }
 
-    /* ─── LOADING ─────────────────────────── */
+    /* Loading */
     #loading { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.82); z-index: 400; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
     #loading.on { display: flex; }
     .spinner { width: 36px; height: 36px; border-radius: 50%; border: 3px solid #e5e7eb; border-top-color: #00d4aa; animation: spin 0.8s linear infinite; }
     @keyframes spin { to{transform:rotate(360deg)} }
     .loading-txt { font-size: 14px; color: #6b7280; }
 
-    /* ─── TOAST ───────────────────────────── */
-    .toast { position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%); background: #1a2332; color: white; padding: 12px 22px; border-radius: 50px; font-size: 14px; z-index: 500; white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,0.3); animation: toastIn 0.25s ease; }
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+      background: #1a2332; color: white; padding: 12px 22px; border-radius: 50px;
+      font-size: 14px; z-index: 500; white-space: nowrap;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3); animation: toastIn 0.25s ease;
+    }
     @keyframes toastIn { from{opacity:0;transform:translateX(-50%) translateY(8px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
 
     #fileInput, #settingsFileInput { display: none; }
@@ -238,14 +258,8 @@
 </head>
 <body>
 
-<!-- HEADER -->
-<header class="app-header" id="appHeader" style="display:none">
-  <div class="header-logo">יאמיט <span>| סורק מלאי</span></div>
-  <button class="icon-btn" id="settingsBtn">&#9881;&#65039;</button>
-</header>
-
 <!-- SETUP SCREEN -->
-<div class="screen active" id="setupScreen">
+<div id="setupScreen">
   <div class="setup-card">
     <div class="setup-icon">&#128230;</div>
     <div class="setup-title">סורק מלאי יאמיט</div>
@@ -265,82 +279,79 @@
   </div>
 </div>
 
-<!-- MAIN SCREEN -->
-<div class="screen" id="mainScreen">
-  <div class="stats-bar" id="statsBar"></div>
-  <div class="search-row">
-    <div class="search-wrap">
-      <span class="s-icon">&#128269;</span>
-      <input class="search-input" id="searchInput" type="search"
-        placeholder="חיפוש לפי שם, מק&quot;ט..."
-        autocomplete="off" autocorrect="off" spellcheck="false">
-      <button class="clear-btn" id="clearBtn">&#10005;</button>
+<!-- SCANNER SCREEN -->
+<div id="scannerScreen">
+  <video id="video" playsinline autoplay muted></video>
+
+  <div id="scannerTopBar">
+    <div class="scanner-logo">יאמיט <span>| סורק</span></div>
+    <div class="top-actions">
+      <button class="icon-btn" id="pendingBtn" style="display:none">
+        &#128190;
+        <span class="pending-badge" id="pendingCount"></span>
+      </button>
+      <button class="icon-btn" id="settingsBtn">&#9881;&#65039;</button>
     </div>
-    <button class="cam-btn" id="scanBtn" title="סרוק ברקוד">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0f2438" stroke-width="2.5" stroke-linecap="round">
-        <path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/>
-        <line x1="7" y1="12" x2="17" y2="12"/>
-      </svg>
-    </button>
   </div>
-  <div class="results-area" id="resultsArea"></div>
+
+  <div id="scannerFrame">
+    <div class="frame-box">
+      <i></i>
+      <div class="scan-anim"></div>
+    </div>
+    <div class="scan-hint">כוון את הברקוד למסגרת</div>
+  </div>
+
+  <div id="resultOverlay">
+    <div class="overlay-barcode-label">ברקוד</div>
+    <div class="overlay-barcode-val" id="overlayBarcodeVal"></div>
+    <div class="overlay-status" id="overlayStatus"></div>
+    <div class="overlay-actions">
+      <button class="overlay-btn overlay-btn-secondary" id="overlayScanAgain">סרוק שוב</button>
+      <button class="overlay-btn overlay-btn-primary"   id="overlayContinue">המשך</button>
+    </div>
+  </div>
 </div>
 
-<!-- CAMERA OVERLAY -->
-<div id="camOverlay">
-
-  <!-- ① VIEWFINDER -->
-  <div id="camVF">
-    <div class="cam-inner">
-      <video id="video" playsinline autoplay muted></video>
-      <div class="scan-frame">
-        <div class="frame-box"><i></i><div class="scan-line"></div></div>
-      </div>
-    </div>
-    <p class="cam-hint">כוון את התווית אל תוך המסגרת והחזק בשקט</p>
-    <button class="cam-capture-btn" id="camCapture">📸&#160;&#160;צלם</button>
-    <button class="cam-close" id="camClose">סגור</button>
-  </div>
-
-  <!-- ② PROCESSING -->
-  <div id="camProc">
-    <div class="spinner" style="width:52px;height:52px;border-width:4px;border-top-color:#00d4aa;"></div>
-    <p class="cam-hint" style="opacity:1;">מנתח תמונה...</p>
-  </div>
-
-  <!-- ③ PREVIEW -->
-  <div id="camPrev">
-    <canvas id="snapCanvas"></canvas>
-    <div id="camPrevInfo" style="width:100%;padding:0 16px;display:flex;flex-direction:column;gap:10px;"></div>
-    <div class="cam-prev-btns">
-      <button class="cam-close" id="camRetake">↩ צלם מחדש</button>
-      <button class="cam-capture-btn" id="camContinue">המשך ←</button>
-    </div>
-    <button class="cam-close" id="camClose2">סגור</button>
-  </div>
-
-</div>
-
-<!-- RESULT MODAL -->
-<div class="backdrop" id="resultModal">
+<!-- PRODUCT SHEET (Step 4a) -->
+<div class="sheet-backdrop" id="productSheetBackdrop">
   <div class="sheet">
     <div class="handle"></div>
-    <div class="res-name" id="modalName"></div>
-    <div id="modalBody"></div>
-    <button class="btn btn-ghost" id="modalClose" style="margin-top:18px">סגור</button>
+    <div class="sheet-title" id="productSheetName"></div>
+    <div id="productSheetBody"></div>
+    <button class="btn btn-primary" id="productSheetRescan" style="margin-top:18px">&#128247; סרוק שוב</button>
+  </div>
+</div>
+
+<!-- LINK SHEET (Step 4b) -->
+<div class="sheet-backdrop" id="linkSheetBackdrop">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="sheet-title">ברקוד לא נמצא</div>
+    <div class="link-sub" id="linkSheetBarcode"></div>
+    <div class="link-search-wrap">
+      <span class="link-search-icon">&#128269;</span>
+      <input class="link-search-input" id="linkSearchInput"
+        type="search" placeholder="חפש מוצר לקישור..."
+        autocomplete="off" autocorrect="off" spellcheck="false">
+    </div>
+    <div class="link-results" id="linkResults">
+      <div class="link-empty">הקלד שם מוצר או מק&quot;ט לחיפוש</div>
+    </div>
+    <button class="btn btn-secondary" id="linkSkipBtn">&#128190; שמור ברקוד ללא קישור</button>
+    <button class="btn btn-ghost" id="linkCancelBtn" style="margin-top:8px">ביטול</button>
   </div>
 </div>
 
 <!-- SETTINGS MODAL -->
-<div class="backdrop" id="settingsModal">
+<div class="sheet-backdrop" id="settingsModal">
   <div class="sheet">
     <div class="handle"></div>
     <div class="settings-title">&#9881;&#65039; הגדרות</div>
 
     <div class="section-lbl">מקור נתונים</div>
     <label class="field-label" for="settingsUrl">קישור Google Sheets (CSV)</label>
-    <input class="text-input" id="settingsUrl" type="url"
-      placeholder="https://docs.google.com/...">
+    <input class="text-input" id="settingsUrl" type="url" placeholder="https://docs.google.com/...">
     <button class="btn btn-primary" id="settingsLoadUrl">שמור וטען מחדש</button>
     <button class="btn btn-secondary" id="settingsUploadBtn">&#128194; החלף קובץ CSV</button>
     <input type="file" id="settingsFileInput" accept=".csv,.txt">
@@ -350,13 +361,38 @@
     <input class="text-input gap8" id="colId" dir="rtl">
     <label class="field-label">שם פריט</label>
     <input class="text-input gap8" id="colName" dir="rtl">
-    <label class="field-label">מספר חליפי (LMB / קוד פנימי)</label>
+    <label class="field-label">מספר חליפי (ברקוד יצרן)</label>
     <input class="text-input gap8" id="colAlt" dir="rtl">
-    <label class="field-label">ברקוד EAN (אופציונלי — לא חובה בכל שורה)</label>
-    <input class="text-input gap8" id="colEan" dir="rtl">
     <label class="field-label">כמות במלאי</label>
     <input class="text-input" id="colStock" dir="rtl">
     <button class="btn btn-primary" id="saveColsBtn">שמור מיפוי</button>
+
+    <div class="section-lbl">נתוני מחירים (סקרייפינג)</div>
+    <label class="field-label" for="scrapeUrlInput">קישור Google Sheets – דוח מחירים (CSV)</label>
+    <input class="text-input gap8" id="scrapeUrlInput" type="url" placeholder="https://docs.google.com/...">
+    <button class="btn btn-primary" id="scrapeLoadUrlBtn">שמור וטען נתוני מחירים</button>
+    <div class="scrape-count" id="scrapeCount" style="display:none"></div>
+
+    <div class="section-lbl">מיפוי עמודות – דוח מחירים</div>
+    <label class="field-label">מק״ט (מפתח חיבור)</label>
+    <input class="text-input gap8" id="scColSku" dir="rtl">
+    <label class="field-label">מחיר רגיל</label>
+    <input class="text-input gap8" id="scColPrice" dir="rtl">
+    <label class="field-label">מחיר מבצע</label>
+    <input class="text-input gap8" id="scColSalePrice" dir="rtl">
+    <label class="field-label">מלאי (זמינות אתר)</label>
+    <input class="text-input gap8" id="scColStock" dir="rtl">
+    <label class="field-label">תכונה 1</label>
+    <input class="text-input gap8" id="scColFeature1" dir="rtl">
+    <label class="field-label">תכונה 2</label>
+    <input class="text-input gap8" id="scColFeature2" dir="rtl">
+    <label class="field-label">URL מוצר</label>
+    <input class="text-input gap8" id="scColUrl" dir="rtl">
+    <button class="btn btn-ghost" id="saveScrapeColsBtn">שמור מיפוי עמודות</button>
+
+    <div class="section-lbl">ברקודים ממתינים לייצוא</div>
+    <div class="scrape-count" id="pendingCountSettings" style="display:none"></div>
+    <button class="btn btn-secondary" id="exportPendingBtn">&#128229; ייצא ממתינים כ-CSV</button>
 
     <div class="section-lbl">נתונים</div>
     <button class="btn btn-danger" id="clearDataBtn">&#128465; מחק נתונים שמורים ואפס</button>
@@ -372,102 +408,83 @@
 </div>
 
 <script>
-// ── Constants ────────────────────────────────────────────────────────────────
-var LS_DATA = 'yamit_data';
-var LS_URL  = 'yamit_url';
-var LS_COLS = 'yamit_cols';
-var DEFAULT_COLS = { id: 'מספר פריט', name: 'שם פריט', alt: 'מספר חליפי', stock: 'כמות במלאי', ean: 'ברקוד' };
+// ── Constants ─────────────────────────────────────────────────────────────────
+var LS_DATA        = 'yamit_data';
+var LS_URL         = 'yamit_url';
+var LS_COLS        = 'yamit_cols';
+var LS_SCRAPE_URL  = 'yamit_scrape_url';
+var LS_SCRAPE_DATA = 'yamit_scrape_data';
+var LS_SCRAPE_COLS = 'yamit_scrape_cols';
+var LS_PENDING     = 'yamit_pending';
 
-// ── State ────────────────────────────────────────────────────────────────────
-var products = [];
-var cols = Object.assign({}, DEFAULT_COLS);
+var DEFAULT_COLS = { id: 'מספר פריט', name: 'שם פריט', alt: 'מספר חליפי', stock: 'כמות במלאי' };
+var DEFAULT_SCRAPE_COLS = {
+  sku: 'מק"ט', price: 'מחיר רגיל (₪)', salePrice: 'מחיר מבצע (₪)',
+  stock: 'מלאי', feature1: 'תכונה 1', feature2: 'תכונה 2', url: 'URL מוצר'
+};
 
-// ── DOM refs ─────────────────────────────────────────────────────────────────
+// ── State ─────────────────────────────────────────────────────────────────────
+var products        = [];
+var cols            = Object.assign({}, DEFAULT_COLS);
+var scrapeCols      = Object.assign({}, DEFAULT_SCRAPE_COLS);
+var scrapeMap       = {};
+var pendingBarcodes = [];
+
+// Scanner state
+var scanStream     = null;
+var rafId          = null;
+var zxingReader    = null;
+var scanPaused     = false;
+var currentBarcode = null;
+var currentProduct = null;
+
+// ── DOM helpers ───────────────────────────────────────────────────────────────
 function el(id) { return document.getElementById(id); }
-var appHeader     = el('appHeader');
-var setupScreen   = el('setupScreen');
-var mainScreen    = el('mainScreen');
-var statsBar      = el('statsBar');
-var searchInput   = el('searchInput');
-var clearBtn      = el('clearBtn');
-var resultsArea   = el('resultsArea');
-var setupError    = el('setupError');
-var loadingEl     = el('loading');
-var camOverlay    = el('camOverlay');
-var resultModal   = el('resultModal');
-var settingsModal = el('settingsModal');
+var video     = el('video');
+var loadingEl = el('loading');
 
-// ── Boot ─────────────────────────────────────────────────────────────────────
+// ── Boot ──────────────────────────────────────────────────────────────────────
 (function boot() {
-  var savedCols = localStorage.getItem(LS_COLS);
-  if (savedCols) {
-    try { cols = Object.assign({}, DEFAULT_COLS, JSON.parse(savedCols)); } catch(e) {}
-  }
+  var sc = localStorage.getItem(LS_COLS);
+  if (sc) { try { cols = Object.assign({}, DEFAULT_COLS, JSON.parse(sc)); } catch(e) {} }
+
+  var ssc = localStorage.getItem(LS_SCRAPE_COLS);
+  if (ssc) { try { scrapeCols = Object.assign({}, DEFAULT_SCRAPE_COLS, JSON.parse(ssc)); } catch(e) {} }
+
+  var savedScrape = localStorage.getItem(LS_SCRAPE_DATA);
+  if (savedScrape) { try { buildScrapeMap(savedScrape); } catch(e) {} }
+
+  var sp = localStorage.getItem(LS_PENDING);
+  if (sp) { try { pendingBarcodes = JSON.parse(sp); } catch(e) {} }
+
   var savedData = localStorage.getItem(LS_DATA);
   if (savedData) {
     try {
       products = parseCSV(savedData);
-      showMain();
+      showScanner();
+      updatePendingBadge();
       return;
     } catch(e) {}
   }
   showSetup();
+  updatePendingBadge();
 })();
 
 // ── Screen switching ──────────────────────────────────────────────────────────
 function showSetup() {
-  setupScreen.classList.add('active');
-  mainScreen.classList.remove('active');
-  appHeader.style.display = 'none';
+  el('setupScreen').classList.add('active');
+  el('scannerScreen').classList.remove('active');
   el('urlInput').value = localStorage.getItem(LS_URL) || '';
+  stopScanner();
 }
 
-function showMain() {
-  setupScreen.classList.remove('active');
-  mainScreen.classList.add('active');
-  appHeader.style.display = 'flex';
-  updateStats();
-  renderEmpty();
-  searchInput.value = '';
-  clearBtn.classList.remove('on');
+function showScanner() {
+  el('setupScreen').classList.remove('active');
+  el('scannerScreen').classList.add('active');
+  if (!scanStream) startScanner();
 }
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
-function updateStats() {
-  var pos = 0, neg = 0;
-  products.forEach(function(p) {
-    var n = parseFloat(p[cols.stock]);
-    if (!isNaN(n) && n > 0) pos++;
-    if (!isNaN(n) && n < 0) neg++;
-  });
-  // Build stats bar with textContent only
-  statsBar.textContent = '';
-  var s1 = document.createElement('span');
-  var b1 = document.createElement('strong');
-  b1.textContent = fmt(products.length);
-  s1.appendChild(b1);
-  s1.appendChild(document.createTextNode(' פריטים'));
-  statsBar.appendChild(s1);
-
-  var s2 = document.createElement('span');
-  var b2 = document.createElement('strong');
-  b2.textContent = fmt(pos);
-  s2.appendChild(b2);
-  s2.appendChild(document.createTextNode(' במלאי'));
-  statsBar.appendChild(s2);
-
-  if (neg > 0) {
-    var s3 = document.createElement('span');
-    s3.style.color = '#dc2626';
-    var b3 = document.createElement('strong');
-    b3.textContent = fmt(neg);
-    s3.appendChild(b3);
-    s3.appendChild(document.createTextNode(' גירעון'));
-    statsBar.appendChild(s3);
-  }
-}
-
-// ── CSV parsing ───────────────────────────────────────────────────────────────
+// ── CSV ───────────────────────────────────────────────────────────────────────
 function parseCSV(text) {
   var result = Papa.parse(text, { header: true, skipEmptyLines: true });
   return result.data.filter(function(row) {
@@ -479,31 +496,43 @@ function parseCSV(text) {
   });
 }
 
-// ── Loading ───────────────────────────────────────────────────────────────────
+function buildScrapeMap(text) {
+  scrapeMap = {};
+  var result = Papa.parse(text, { header: true, skipEmptyLines: true });
+  result.data.forEach(function(row) {
+    var sku = String(row[scrapeCols.sku] || '').trim();
+    if (sku) scrapeMap[sku] = row;
+  });
+}
+
+function updateScrapeCount() {
+  var n = Object.keys(scrapeMap).length;
+  var c = el('scrapeCount');
+  if (!c) return;
+  if (n > 0) { c.style.display = 'block'; c.textContent = '✓ נטענו ' + fmt(n) + ' פריטים מדוח המחירים'; }
+  else { c.style.display = 'none'; }
+}
+
+// ── Data loading ──────────────────────────────────────────────────────────────
 function setLoading(on) { loadingEl.classList.toggle('on', on); }
-function showErr(msg)  { setupError.textContent = msg; setupError.classList.add('on'); }
-function hideErr()     { setupError.classList.remove('on'); }
+function showErr(msg)   { var e = el('setupError'); e.textContent = msg; e.classList.add('on'); }
+function hideErr()      { el('setupError').classList.remove('on'); }
 
 function loadUrl(url) {
   setLoading(true); hideErr();
   fetch(url)
-    .then(function(res) {
-      if (!res.ok) throw new Error('http');
-      return res.text();
-    })
+    .then(function(r) { if (!r.ok) throw new Error('http'); return r.text(); })
     .then(function(text) {
       var rows = parseCSV(text);
       if (!rows.length) throw new Error('empty');
       products = rows;
       localStorage.setItem(LS_DATA, text);
       localStorage.setItem(LS_URL, url);
-      showMain();
+      showScanner();
       showToast('נטענו ' + fmt(products.length) + ' פריטים ✓');
     })
     .catch(function(e) {
-      showErr(e.message === 'empty'
-        ? 'לא נמצאו פריטים בקובץ'
-        : 'שגיאה בטעינת הנתונים. נסה שוב.');
+      showErr(e.message === 'empty' ? 'לא נמצאו פריטים בקובץ' : 'שגיאה בטעינת הנתונים. נסה שוב.');
     })
     .finally(function() { setLoading(false); });
 }
@@ -519,16 +548,28 @@ function loadFile(file) {
       products = rows;
       localStorage.setItem(LS_DATA, text);
       localStorage.removeItem(LS_URL);
-      showMain();
+      showScanner();
       showToast('נטענו ' + fmt(products.length) + ' פריטים ✓');
-    } catch(err) {
-      showErr('לא נמצאו פריטים בקובץ');
-    } finally {
-      setLoading(false);
-    }
+    } catch(err) { showErr('לא נמצאו פריטים בקובץ'); }
+    finally { setLoading(false); }
   };
   reader.onerror = function() { showErr('שגיאה בקריאת הקובץ'); setLoading(false); };
   reader.readAsText(file, 'UTF-8');
+}
+
+function loadScrapeUrl(url) {
+  setLoading(true);
+  fetch(url)
+    .then(function(r) { if (!r.ok) throw new Error(); return r.text(); })
+    .then(function(text) {
+      buildScrapeMap(text);
+      localStorage.setItem(LS_SCRAPE_DATA, text);
+      localStorage.setItem(LS_SCRAPE_URL, url);
+      updateScrapeCount();
+      showToast('נתוני מחירים נטענו ✓ (' + fmt(Object.keys(scrapeMap).length) + ' פריטים)');
+    })
+    .catch(function() { showToast('שגיאה בטעינת נתוני המחירים'); })
+    .finally(function() { setLoading(false); });
 }
 
 // ── Setup events ──────────────────────────────────────────────────────────────
@@ -542,147 +583,134 @@ el('fileInput').addEventListener('change', function(e) {
   if (e.target.files[0]) loadFile(e.target.files[0]);
 });
 
-// ── Search ────────────────────────────────────────────────────────────────────
-function doSearch(q) {
-  if (!q || q.length < 2) return null;
-  var lq = q.toLowerCase();
-  return products.filter(function(p) {
-    return norm(p[cols.id]).indexOf(lq) >= 0 ||
-           norm(p[cols.name]).indexOf(lq) >= 0 ||
-           norm(p[cols.alt]).indexOf(lq) >= 0 ||
-           norm(p[cols.ean]).indexOf(lq) >= 0;
-  });
+// ── Scanner core ──────────────────────────────────────────────────────────────
+function startScanner() {
+  var constraints = {
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+  };
+  navigator.mediaDevices.getUserMedia(constraints)
+    .then(function(stream) {
+      scanStream = stream;
+      video.srcObject = stream;
+      var p = video.play();
+      if (p) p.catch(function() {});
+      video.addEventListener('playing', function onPlay() {
+        video.removeEventListener('playing', onPlay);
+        scanPaused = false;
+        if ('BarcodeDetector' in window) {
+          startNativeLoop();
+        } else {
+          startZXingLoop();
+        }
+      });
+    })
+    .catch(function() {
+      showToast('אין גישה למצלמה. אנא אשר הרשאה בהגדרות.');
+    });
 }
 
-// ── DOM-safe card builders ────────────────────────────────────────────────────
-function stockClass(qty) {
-  var n = parseFloat(qty);
-  if (isNaN(n) || n === 0) return 'zero';
-  return n > 0 ? 'pos' : 'neg';
-}
+function startNativeLoop() {
+  var formats = ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','itf','pdf417','data_matrix'];
+  var det;
+  try { det = new BarcodeDetector({ formats: formats }); }
+  catch(e) { startZXingLoop(); return; }
 
-function makeBadge(qty) {
-  var cls = stockClass(qty);
-  var n = parseFloat(qty);
-  var label = isNaN(n) ? '—' : n.toLocaleString('he-IL');
-  var span = document.createElement('span');
-  span.className = 'badge badge-' + cls;
-  var dot = document.createElement('span');
-  dot.className = 'bdot';
-  span.appendChild(dot);
-  span.appendChild(document.createTextNode(label));
-  return span;
-}
-
-function makeCard(p, onClick) {
-  var card = document.createElement('div');
-  card.className = 'product-card';
-
-  var nameEl = document.createElement('div');
-  nameEl.className = 'pc-name';
-  nameEl.textContent = p[cols.name] || '—';
-  card.appendChild(nameEl);
-
-  var meta = document.createElement('div');
-  meta.className = 'pc-meta';
-
-  var sku = document.createElement('span');
-  sku.className = 'pc-sku';
-  sku.textContent = p[cols.id] || '';
-  meta.appendChild(sku);
-  meta.appendChild(makeBadge(p[cols.stock]));
-  card.appendChild(meta);
-
-  card.addEventListener('click', onClick);
-  return card;
-}
-
-function renderList(results, q) {
-  resultsArea.textContent = '';
-  if (!results.length) {
-    renderEmpty('לא נמצאו תוצאות', 'אין פריטים התואמים "' + q + '"', '🤷');
-    return;
+  var detecting = false;
+  function loop() {
+    if (scanPaused) { rafId = null; return; }
+    rafId = requestAnimationFrame(loop);
+    if (detecting || video.readyState < 2) return;
+    detecting = true;
+    det.detect(video)
+      .then(function(codes) {
+        detecting = false;
+        if (!scanPaused && codes.length) onBarcodeDetected(codes[0].rawValue);
+      })
+      .catch(function() { detecting = false; });
   }
-  var count = document.createElement('div');
-  count.className = 'res-count';
-  count.textContent = fmt(results.length) + ' תוצאות';
-  resultsArea.appendChild(count);
-
-  results.forEach(function(p) {
-    resultsArea.appendChild(makeCard(p, function() { openResult(p); }));
-  });
+  rafId = requestAnimationFrame(loop);
 }
 
-function renderEmpty(title, sub, icon) {
-  resultsArea.textContent = '';
-  var wrap = document.createElement('div');
-  wrap.className = 'empty';
-
-  var ic = document.createElement('div');
-  ic.className = 'empty-icon';
-  ic.textContent = icon || '🔍';
-  wrap.appendChild(ic);
-
-  var h3 = document.createElement('h3');
-  h3.textContent = title || 'חפש מוצר';
-  wrap.appendChild(h3);
-
-  var p = document.createElement('p');
-  p.textContent = sub || 'הקלד שם מוצר, מק"ט\nאו סרוק ברקוד';
-  wrap.appendChild(p);
-
-  resultsArea.appendChild(wrap);
+function startZXingLoop() {
+  try {
+    zxingReader = new ZXing.BrowserMultiFormatReader();
+    zxingReader.decodeFromStream(scanStream, video, function(result) {
+      if (result && !scanPaused) onBarcodeDetected(result.getText());
+    });
+  } catch(e) {
+    showToast('שגיאה בסורק ברקודים');
+  }
 }
 
-var debounceTimer;
-searchInput.addEventListener('input', function() {
-  var q = searchInput.value.trim();
-  clearBtn.classList.toggle('on', q.length > 0);
-  clearTimeout(debounceTimer);
-  if (!q) { renderEmpty(); return; }
-  debounceTimer = setTimeout(function() {
-    var res = doSearch(q);
-    if (res) renderList(res, q);
-  }, 130);
-});
+function stopScanner() {
+  scanPaused = true;
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  zxingReader = null;
+  if (scanStream) {
+    scanStream.getTracks().forEach(function(t) { t.stop(); });
+    scanStream = null;
+  }
+  video.srcObject = null;
+}
 
-clearBtn.addEventListener('click', function() {
-  searchInput.value = '';
-  clearBtn.classList.remove('on');
-  renderEmpty();
-  searchInput.focus();
-});
+function resumeScanner() {
+  el('resultOverlay').classList.remove('show');
+  el('productSheetBackdrop').classList.remove('open');
+  el('linkSheetBackdrop').classList.remove('open');
+  currentBarcode = null;
+  currentProduct = null;
+  scanPaused = false;
+  if (!scanStream) { startScanner(); return; }
+  if ('BarcodeDetector' in window) {
+    startNativeLoop();
+  }
+  // ZXing: callback is still running, scanPaused=false re-enables it
+}
 
-// ── Result modal ──────────────────────────────────────────────────────────────
-el('modalClose').addEventListener('click', function() { resultModal.classList.remove('open'); });
-resultModal.addEventListener('click', function(e) {
-  if (e.target === resultModal) resultModal.classList.remove('open');
-});
+function onBarcodeDetected(val) {
+  if (scanPaused) return;
+  scanPaused = true;
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
 
-function makeRow(label, valueText, valueBadge) {
-  var row = document.createElement('div');
-  row.className = 'res-row';
+  val = String(val).trim();
+  currentBarcode = val;
+  var match = products.find(function(p) { return String(p[cols.id]  || '').trim() === val; })
+           || products.find(function(p) { return String(p[cols.alt] || '').trim() === val; });
+  currentProduct = match || null;
+  showResultOverlay(val, match);
+}
 
-  var lbl = document.createElement('span');
-  lbl.className = 'res-lbl';
-  lbl.textContent = label;
-  row.appendChild(lbl);
-
-  if (valueBadge) {
-    row.appendChild(valueBadge);
+// ── Result overlay ────────────────────────────────────────────────────────────
+function showResultOverlay(barcode, product) {
+  el('overlayBarcodeVal').textContent = barcode;
+  var st = el('overlayStatus');
+  st.className = 'overlay-status';
+  if (product) {
+    st.textContent = product[cols.name] || 'נמצא ✓';
+    st.classList.add('found');
   } else {
-    var val = document.createElement('span');
-    val.className = 'res-val';
-    val.textContent = valueText || '—';
-    row.appendChild(val);
+    st.textContent = 'לא נמצא במלאי';
+    st.classList.add('notfound');
   }
-  return row;
+  el('resultOverlay').classList.add('show');
 }
 
-function openResult(p) {
-  el('modalName').textContent = p[cols.name] || '—';
-  var body = el('modalBody');
+el('overlayScanAgain').addEventListener('click', resumeScanner);
+
+el('overlayContinue').addEventListener('click', function() {
+  el('resultOverlay').classList.remove('show');
+  if (currentProduct) {
+    showProductSheet(currentProduct);
+  } else {
+    showLinkSheet(currentBarcode);
+  }
+});
+
+// ── Product sheet ─────────────────────────────────────────────────────────────
+function showProductSheet(p) {
+  var body = el('productSheetBody');
   body.textContent = '';
+  el('productSheetName').textContent = p[cols.name] || '—';
 
   body.appendChild(makeRow('מספר פריט', p[cols.id] || '—'));
   if (p[cols.alt] && String(p[cols.alt]).trim()) {
@@ -690,293 +718,283 @@ function openResult(p) {
   }
   body.appendChild(makeRow('כמות במלאי', null, makeBadge(p[cols.stock])));
 
-  resultModal.classList.add('open');
-}
+  var sd = scrapeMap[String(p[cols.id] || '').trim()];
+  if (sd) {
+    var sec = document.createElement('div');
+    sec.className = 'modal-section';
+    sec.textContent = 'נתוני אתר';
+    body.appendChild(sec);
 
-// ── Scanner ───────────────────────────────────────────────────────────────────
-var camStream  = null;
-var snapResult = null;
-var codeReader = null; // ZXing instance (fallback)
+    var reg  = String(sd[scrapeCols.price]     || '').trim();
+    var sale = String(sd[scrapeCols.salePrice]  || '').trim();
+    if (sale && sale !== reg && sale !== '0') {
+      var priceRow = document.createElement('div');
+      priceRow.className = 'res-row';
+      var lbl = document.createElement('span'); lbl.className = 'res-lbl'; lbl.textContent = 'מחיר';
+      var vals = document.createElement('span');
+      var sEl = document.createElement('span'); sEl.className = 'price-sale'; sEl.textContent = '₪' + sale;
+      vals.appendChild(sEl);
+      if (reg) { var wEl = document.createElement('span'); wEl.className = 'price-was'; wEl.textContent = '₪' + reg; vals.appendChild(wEl); }
+      priceRow.appendChild(lbl); priceRow.appendChild(vals);
+      body.appendChild(priceRow);
+    } else if (reg) {
+      body.appendChild(makeRow('מחיר', '₪' + reg));
+    }
 
-el('scanBtn').addEventListener('click', openCam);
-el('camClose').addEventListener('click', closeCam);
-el('camClose2').addEventListener('click', closeCam);
-el('camCapture').addEventListener('click', captureFrame);
-el('camRetake').addEventListener('click', showViewfinder);
-el('camContinue').addEventListener('click', useCaptureResult);
+    var onlineStock = String(sd[scrapeCols.stock]    || '').trim();
+    var f1          = String(sd[scrapeCols.feature1] || '').trim();
+    var f2          = String(sd[scrapeCols.feature2] || '').trim();
+    if (onlineStock) body.appendChild(makeRow('מלאי באתר', onlineStock));
+    if (f1) body.appendChild(makeRow('תכונה 1', f1));
+    if (f2) body.appendChild(makeRow('תכונה 2', f2));
 
-function camState(s) {
-  el('camVF').style.display   = s === 'vf'   ? 'flex' : 'none';
-  el('camProc').style.display = s === 'proc' ? 'flex' : 'none';
-  el('camPrev').style.display = s === 'prev' ? 'flex' : 'none';
-}
-
-function openCam() {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showToast('המצלמה אינה נתמכת בדפדפן זה'); return;
-  }
-  snapResult = null;
-  camState('vf');
-  camOverlay.classList.add('open');
-
-  navigator.mediaDevices.getUserMedia({
-    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-  }).then(function(stream) {
-    camStream = stream;
-    var video = el('video');
-    video.srcObject = stream;
-    video.play();
-  }).catch(function() {
-    closeCam();
-    showToast('אין גישה למצלמה. אנא אשר הרשאה בהגדרות.');
-  });
-}
-
-function showViewfinder() {
-  var video = el('video');
-  if (video && video.paused && camStream) video.play();
-  camState('vf');
-}
-
-function captureFrame() {
-  var video = el('video');
-  if (!video || !video.videoWidth) { showToast('המצלמה עדיין נטענת...'); return; }
-
-  video.pause(); // freeze live preview
-
-  var canvas = el('snapCanvas');
-  canvas.width  = video.videoWidth;
-  canvas.height = video.videoHeight;
-  canvas.getContext('2d').drawImage(video, 0, 0);
-
-  camState('proc');
-  processCapture(canvas);
-}
-
-function processCapture(canvas) {
-  var barcode = null;
-  var ocrLines = [];
-
-  // ── Barcode detection ──────────────────────────────────────────────────────
-  var barcodeP;
-  if ('BarcodeDetector' in window) {
-    var det = new BarcodeDetector({
-      formats: ['ean_13','ean_8','code_128','code_39','qr_code','upc_a','upc_e','itf','pdf417','data_matrix','aztec']
-    });
-    barcodeP = det.detect(canvas).then(function(codes) {
-      if (codes.length) barcode = codes[0].rawValue;
-    }).catch(function(){});
-  } else if (typeof ZXing !== 'undefined') {
-    var img = document.createElement('img');
-    barcodeP = new Promise(function(resolve) {
-      img.onload = function() {
-        codeReader = new ZXing.BrowserMultiFormatReader();
-        codeReader.decodeFromImage(img).then(function(res) {
-          if (res) barcode = res.getText();
-          resolve();
-        }).catch(resolve);
-      };
-      img.src = canvas.toDataURL('image/jpeg', 0.92);
-    });
-  } else {
-    barcodeP = Promise.resolve();
-  }
-
-  // ── OCR (Tesseract) ────────────────────────────────────────────────────────
-  var ocrP;
-  if (typeof Tesseract !== 'undefined') {
-    ocrP = Tesseract.recognize(canvas, 'eng').then(function(r) {
-      ocrLines = r.data.text.split('\n')
-        .map(function(l) { return l.trim(); })
-        .filter(function(l) { return l.length > 2; });
-    }).catch(function(){});
-  } else {
-    ocrP = Promise.resolve();
-  }
-
-  Promise.all([barcodeP, ocrP]).then(function() {
-    snapResult = { barcode: barcode, texts: ocrLines };
-    renderPreview(snapResult);
-    camState('prev');
-  });
-}
-
-function renderPreview(result) {
-  var info = el('camPrevInfo');
-  info.textContent = '';
-
-  // Barcode row
-  if (result.barcode) {
-    var bDiv = document.createElement('div');
-    bDiv.className = 'prev-barcode';
-    bDiv.textContent = '📦  ' + result.barcode;
-    info.appendChild(bDiv);
-  } else {
-    var nDiv = document.createElement('div');
-    nDiv.className = 'prev-nobarcode';
-    nDiv.textContent = 'ברקוד לא זוהה בתמונה';
-    info.appendChild(nDiv);
-  }
-
-  // OCR text block
-  if (result.texts.length) {
-    var label = document.createElement('div');
-    label.className = 'prev-ocr-label';
-    label.style.color = 'rgba(255,255,255,0.35)';
-    label.style.fontSize = '11px';
-    label.style.textTransform = 'uppercase';
-    label.style.letterSpacing = '0.5px';
-    label.style.paddingRight = '2px';
-    label.textContent = 'טקסט שזוהה';
-    info.appendChild(label);
-
-    var tDiv = document.createElement('div');
-    tDiv.className = 'prev-ocr';
-    result.texts.slice(0, 8).forEach(function(line) {
-      var p = document.createElement('p');
-      p.textContent = line;
-      tDiv.appendChild(p);
-    });
-    info.appendChild(tDiv);
-  }
-
-  // Continue button state
-  var cont = el('camContinue');
-  var hasData = !!(result.barcode || result.texts.length);
-  cont.disabled = !hasData;
-}
-
-function useCaptureResult() {
-  if (!snapResult) return;
-  closeCam();
-
-  if (snapResult.barcode) {
-    handleBarcode(snapResult.barcode);
-    return;
-  }
-
-  // No barcode — search with the longest OCR line (likely the product name)
-  if (snapResult.texts.length) {
-    var best = snapResult.texts.reduce(function(a, b) {
-      return b.length > a.length ? b : a;
-    }, '');
-    searchInput.value = best;
-    clearBtn.classList.add('on');
-    var res = doSearch(best);
-    if (res && res.length) {
-      renderList(res, best);
-      if (res.length === 1) openResult(res[0]);
-    } else {
-      showToast('לא נמצא: ' + best);
+    var productUrl = String(sd[scrapeCols.url] || '').trim();
+    if (productUrl) {
+      var urlRow = document.createElement('div'); urlRow.className = 'res-row';
+      var ul = document.createElement('span'); ul.className = 'res-lbl'; ul.textContent = 'קישור מוצר';
+      var a  = document.createElement('a');
+      a.className = 'res-link'; a.textContent = 'פתח באתר ↗';
+      a.href = productUrl; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      urlRow.appendChild(ul); urlRow.appendChild(a);
+      body.appendChild(urlRow);
     }
   }
+
+  el('productSheetBackdrop').classList.add('open');
 }
 
-function closeCam() {
-  if (codeReader) { try { codeReader.reset(); } catch(e){} codeReader = null; }
-  if (camStream)  { camStream.getTracks().forEach(function(t){ t.stop(); }); camStream = null; }
-  var video = el('video');
-  if (video) { video.srcObject = null; }
-  snapResult = null;
-  camState('vf');
-  camOverlay.classList.remove('open');
+el('productSheetRescan').addEventListener('click', resumeScanner);
+el('productSheetBackdrop').addEventListener('click', function(e) {
+  if (e.target === el('productSheetBackdrop')) resumeScanner();
+});
+
+// ── Link sheet ────────────────────────────────────────────────────────────────
+var linkDebounce;
+
+function showLinkSheet(barcode) {
+  el('linkSheetBarcode').textContent = barcode;
+  el('linkSearchInput').value = '';
+  renderLinkEmpty('הקלד שם מוצר או מק"ט לחיפוש');
+  el('linkSheetBackdrop').classList.add('open');
+  setTimeout(function() { el('linkSearchInput').focus(); }, 300);
 }
 
-function handleBarcode(val) {
-  var v = val.trim();
-  var match = products.find(function(p) { return String(p[cols.id]  || '').trim() === v; })
-           || products.find(function(p) { return String(p[cols.alt] || '').trim() === v; })
-           || products.find(function(p) { return String(p[cols.ean] || '').trim() === v; });
-  if (match) {
-    searchInput.value = v;
-    clearBtn.classList.add('on');
-    renderList([match], v);
-    openResult(match);
-    return;
+function renderLinkEmpty(msg) {
+  var c = el('linkResults');
+  c.textContent = '';
+  var d = document.createElement('div');
+  d.className = 'link-empty'; d.textContent = msg;
+  c.appendChild(d);
+}
+
+el('linkSearchInput').addEventListener('input', function() {
+  var q = el('linkSearchInput').value.trim();
+  clearTimeout(linkDebounce);
+  if (q.length < 2) { renderLinkEmpty('הקלד שם מוצר או מק"ט לחיפוש'); return; }
+  linkDebounce = setTimeout(function() {
+    var results = doSearch(q) || [];
+    var c = el('linkResults');
+    c.textContent = '';
+    if (!results.length) { renderLinkEmpty('לא נמצאו מוצרים'); return; }
+    results.slice(0, 20).forEach(function(p) {
+      var row = document.createElement('div');
+      row.className = 'link-product-row';
+      var info = document.createElement('div');
+      var nm = document.createElement('div'); nm.className = 'link-product-name'; nm.textContent = p[cols.name] || '—';
+      var sk = document.createElement('div'); sk.className = 'link-product-sku';  sk.textContent = p[cols.id] || '';
+      info.appendChild(nm); info.appendChild(sk);
+      var chev = document.createElement('span');
+      chev.textContent = '←'; chev.style.cssText = 'color:#9ca3af;font-size:16px;flex-shrink:0';
+      row.appendChild(info); row.appendChild(chev);
+      row.addEventListener('click', function() {
+        var sku = String(p[cols.id] || '').trim();
+        pendingBarcodes.push({ barcode: currentBarcode, timestamp: Date.now(), resolvedSku: sku });
+        savePendingBarcodes(); updatePendingBadge();
+        showToast('ברקוד קושר ל-' + sku + ' ✓');
+        resumeScanner();
+      });
+      c.appendChild(row);
+    });
+  }, 150);
+});
+
+el('linkSkipBtn').addEventListener('click', function() {
+  if (currentBarcode) {
+    if (!pendingBarcodes.some(function(e) { return e.barcode === currentBarcode; })) {
+      pendingBarcodes.push({ barcode: currentBarcode, timestamp: Date.now(), resolvedSku: null });
+      savePendingBarcodes(); updatePendingBadge();
+      showToast('ברקוד נשמר לייצוא ✓');
+    } else {
+      showToast('ברקוד זה כבר ברשימה');
+    }
   }
-  var res = doSearch(v);
-  if (res && res.length) {
-    searchInput.value = v;
-    clearBtn.classList.add('on');
-    renderList(res, v);
-    if (res.length === 1) openResult(res[0]);
+  resumeScanner();
+});
+
+el('linkCancelBtn').addEventListener('click', resumeScanner);
+el('linkSheetBackdrop').addEventListener('click', function(e) {
+  if (e.target === el('linkSheetBackdrop')) resumeScanner();
+});
+
+// ── Search ────────────────────────────────────────────────────────────────────
+function doSearch(q) {
+  if (!q || q.length < 2) return null;
+  var lq = q.toLowerCase();
+  return products.filter(function(p) {
+    return norm(p[cols.id]).indexOf(lq) >= 0 ||
+           norm(p[cols.name]).indexOf(lq) >= 0 ||
+           norm(p[cols.alt]).indexOf(lq) >= 0;
+  });
+}
+
+// ── Card helpers ──────────────────────────────────────────────────────────────
+function makeBadge(qty) {
+  var n = parseFloat(qty);
+  var cls = isNaN(n) || n === 0 ? 'zero' : n > 0 ? 'pos' : 'neg';
+  var label = isNaN(n) ? '—' : n.toLocaleString('he-IL');
+  var span = document.createElement('span'); span.className = 'badge badge-' + cls;
+  var dot  = document.createElement('span'); dot.className = 'bdot';
+  span.appendChild(dot); span.appendChild(document.createTextNode(label));
+  return span;
+}
+
+function makeRow(label, valueText, valueBadge) {
+  var row = document.createElement('div'); row.className = 'res-row';
+  var lbl = document.createElement('span'); lbl.className = 'res-lbl'; lbl.textContent = label;
+  row.appendChild(lbl);
+  if (valueBadge) {
+    row.appendChild(valueBadge);
   } else {
-    showToast('לא נמצא: ' + v);
+    var val = document.createElement('span'); val.className = 'res-val'; val.textContent = valueText || '—';
+    row.appendChild(val);
   }
+  return row;
 }
 
-// ── Settings modal ────────────────────────────────────────────────────────────
-el('settingsBtn').addEventListener('click', function() {
-  el('settingsUrl').value  = localStorage.getItem(LS_URL) || '';
-  el('colId').value        = cols.id;
-  el('colName').value      = cols.name;
-  el('colAlt').value       = cols.alt;
-  el('colEan').value       = cols.ean;
-  el('colStock').value     = cols.stock;
-  settingsModal.classList.add('open');
-});
-el('settingsClose').addEventListener('click', function() { settingsModal.classList.remove('open'); });
-settingsModal.addEventListener('click', function(e) {
-  if (e.target === settingsModal) settingsModal.classList.remove('open');
-});
+// ── Settings ──────────────────────────────────────────────────────────────────
+el('pendingBtn').addEventListener('click', openSettings);
+el('settingsBtn').addEventListener('click', openSettings);
 
+function openSettings() {
+  el('settingsUrl').value    = localStorage.getItem(LS_URL) || '';
+  el('colId').value          = cols.id;
+  el('colName').value        = cols.name;
+  el('colAlt').value         = cols.alt;
+  el('colStock').value       = cols.stock;
+  el('scrapeUrlInput').value = localStorage.getItem(LS_SCRAPE_URL) || '';
+  el('scColSku').value       = scrapeCols.sku;
+  el('scColPrice').value     = scrapeCols.price;
+  el('scColSalePrice').value = scrapeCols.salePrice;
+  el('scColStock').value     = scrapeCols.stock;
+  el('scColFeature1').value  = scrapeCols.feature1;
+  el('scColFeature2').value  = scrapeCols.feature2;
+  el('scColUrl').value       = scrapeCols.url;
+  updateScrapeCount();
+  var unresolved = pendingBarcodes.filter(function(e) { return e.resolvedSku === null; });
+  var pcs = el('pendingCountSettings');
+  if (unresolved.length) { pcs.textContent = unresolved.length + ' ברקודים ממתינים לייצוא'; pcs.style.display = ''; }
+  else { pcs.style.display = 'none'; }
+  el('settingsModal').classList.add('open');
+}
+
+el('settingsClose').addEventListener('click', function() { el('settingsModal').classList.remove('open'); });
+el('settingsModal').addEventListener('click', function(e) {
+  if (e.target === el('settingsModal')) el('settingsModal').classList.remove('open');
+});
 el('settingsLoadUrl').addEventListener('click', function() {
   var url = el('settingsUrl').value.trim();
   if (!url) return;
-  settingsModal.classList.remove('open');
+  el('settingsModal').classList.remove('open');
   loadUrl(url);
 });
-
 el('settingsUploadBtn').addEventListener('click', function() { el('settingsFileInput').click(); });
 el('settingsFileInput').addEventListener('change', function(e) {
-  if (e.target.files[0]) {
-    settingsModal.classList.remove('open');
-    loadFile(e.target.files[0]);
-    e.target.value = '';
-  }
+  if (e.target.files[0]) { el('settingsModal').classList.remove('open'); loadFile(e.target.files[0]); e.target.value = ''; }
 });
-
+el('scrapeLoadUrlBtn').addEventListener('click', function() {
+  var url = el('scrapeUrlInput').value.trim();
+  if (!url) return;
+  el('settingsModal').classList.remove('open');
+  loadScrapeUrl(url);
+});
+el('saveScrapeColsBtn').addEventListener('click', function() {
+  scrapeCols = {
+    sku:       el('scColSku').value.trim()       || DEFAULT_SCRAPE_COLS.sku,
+    price:     el('scColPrice').value.trim()     || DEFAULT_SCRAPE_COLS.price,
+    salePrice: el('scColSalePrice').value.trim() || DEFAULT_SCRAPE_COLS.salePrice,
+    stock:     el('scColStock').value.trim()     || DEFAULT_SCRAPE_COLS.stock,
+    feature1:  el('scColFeature1').value.trim()  || DEFAULT_SCRAPE_COLS.feature1,
+    feature2:  el('scColFeature2').value.trim()  || DEFAULT_SCRAPE_COLS.feature2,
+    url:       el('scColUrl').value.trim()       || DEFAULT_SCRAPE_COLS.url
+  };
+  localStorage.setItem(LS_SCRAPE_COLS, JSON.stringify(scrapeCols));
+  var saved = localStorage.getItem(LS_SCRAPE_DATA);
+  if (saved) { try { buildScrapeMap(saved); } catch(e) {} }
+  updateScrapeCount();
+  el('settingsModal').classList.remove('open');
+  showToast('מיפוי עמודות דוח מחירים נשמר ✓');
+});
 el('saveColsBtn').addEventListener('click', function() {
   cols = {
     id:    el('colId').value.trim()    || DEFAULT_COLS.id,
     name:  el('colName').value.trim()  || DEFAULT_COLS.name,
     alt:   el('colAlt').value.trim()   || DEFAULT_COLS.alt,
-    ean:   el('colEan').value.trim()   || DEFAULT_COLS.ean,
-    stock: el('colStock').value.trim() || DEFAULT_COLS.stock,
+    stock: el('colStock').value.trim() || DEFAULT_COLS.stock
   };
   localStorage.setItem(LS_COLS, JSON.stringify(cols));
   var saved = localStorage.getItem(LS_DATA);
-  if (saved) {
-    try { products = parseCSV(saved); updateStats(); } catch(e) {}
-  }
-  renderEmpty();
-  searchInput.value = '';
-  clearBtn.classList.remove('on');
-  settingsModal.classList.remove('open');
+  if (saved) { try { products = parseCSV(saved); } catch(e) {} }
+  el('settingsModal').classList.remove('open');
   showToast('מיפוי עמודות נשמר ✓');
 });
-
 el('clearDataBtn').addEventListener('click', function() {
   if (!confirm('למחוק את כל הנתונים השמורים ולהתחיל מחדש?')) return;
-  localStorage.removeItem(LS_DATA);
-  localStorage.removeItem(LS_URL);
-  products = [];
-  settingsModal.classList.remove('open');
+  [LS_DATA, LS_URL, LS_SCRAPE_DATA, LS_SCRAPE_URL].forEach(function(k) { localStorage.removeItem(k); });
+  products = []; scrapeMap = {};
+  el('settingsModal').classList.remove('open');
+  stopScanner();
   showSetup();
 });
+el('exportPendingBtn').addEventListener('click', exportPendingCSV);
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
+// ── Pending barcodes ──────────────────────────────────────────────────────────
+function savePendingBarcodes() { localStorage.setItem(LS_PENDING, JSON.stringify(pendingBarcodes)); }
+
+function updatePendingBadge() {
+  var btn = el('pendingBtn');
+  var unresolved = pendingBarcodes.filter(function(e) { return e.resolvedSku === null; });
+  if (unresolved.length) {
+    btn.style.display = '';
+    el('pendingCount').textContent = unresolved.length;
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+function exportPendingCSV() {
+  if (!pendingBarcodes.length) { showToast('אין ברקודים בהמתנה'); return; }
+  function q(v) { return '"' + String(v || '').replace(/"/g, '""') + '"'; }
+  var rows = [['barcode','resolvedSku','timestamp']];
+  pendingBarcodes.forEach(function(e) { rows.push([q(e.barcode), q(e.resolvedSku), q(e.timestamp)]); });
+  var csv  = rows.map(function(r) { return r.join(','); }).join('\n');
+  var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href = url; a.download = 'pending-barcodes-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click(); URL.revokeObjectURL(url);
+  if (confirm('ייצוא הושלם. לנקות את הרשימה?')) {
+    pendingBarcodes = []; savePendingBarcodes(); updatePendingBadge();
+  }
+}
+
+// ── Toast & utils ─────────────────────────────────────────────────────────────
 function showToast(msg) {
-  var t = document.createElement('div');
-  t.className = 'toast';
-  t.textContent = msg;
+  var t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(function() { t.remove(); }, 3000);
 }
-
-// ── Utils ─────────────────────────────────────────────────────────────────────
 function norm(v) { return String(v || '').toLowerCase(); }
-function fmt(n) { return Number(n).toLocaleString('he-IL'); }
+function fmt(n)  { return Number(n).toLocaleString('he-IL'); }
 </script>
 </body>
 </html>
