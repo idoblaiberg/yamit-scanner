@@ -665,7 +665,7 @@ el('fileInput').addEventListener('change', function(e) {
 // ── Scanner core ──────────────────────────────────────────────────────────────
 function startScanner() {
   var constraints = {
-    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
   };
   navigator.mediaDevices.getUserMedia(constraints)
     .then(function(stream) {
@@ -690,7 +690,7 @@ function startScanner() {
 }
 
 function startNativeLoop() {
-  var formats = ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','itf','pdf417','data_matrix'];
+  var formats = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39'];
   var det;
   try { det = new BarcodeDetector({ formats: formats }); }
   catch(e) { startZXingLoop(); return; }
@@ -713,7 +713,7 @@ function startNativeLoop() {
 
 function startZXingLoop() {
   try {
-    zxingReader = new ZXing.BrowserMultiFormatReader();
+    zxingReader = new ZXing.BrowserMultiFormatReader(null, 50);
     zxingReader.decodeFromStream(scanStream, video, function(result) {
       if (result && !scanPaused) onBarcodeDetected(result.getText());
     });
@@ -767,7 +767,7 @@ function onBarcodeDetected(val) {
   var match = products.find(function(p) { return String(p[cols.id]  || '').trim() === val; })
            || products.find(function(p) { return String(p[cols.alt] || '').trim() === val; });
   currentProduct = match || null;
-  setTimeout(function() { showResultOverlay(val, match); }, 150);
+  showResultOverlay(val, match);
 }
 
 function setScanIndicator(active) {
