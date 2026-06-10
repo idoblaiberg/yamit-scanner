@@ -165,6 +165,46 @@
     }
     #resultOverlay.show { display: block; }
 
+    .overlay-details {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 18px; flex-wrap: wrap;
+    }
+    .overlay-detail {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; color: rgba(255,255,255,0.5);
+    }
+    .overlay-detail .badge { font-size: 12px; }
+
+    /* ─── SEARCH OVERLAY ─────────────────────────────────── */
+    #searchOverlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.97); z-index: 50;
+      flex-direction: column;
+    }
+    #searchOverlay.open { display: flex; }
+    #searchOverlayHeader {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 16px;
+      padding-top: max(14px, env(safe-area-inset-top, 14px));
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    #searchOverlayInput {
+      flex: 1; background: rgba(255,255,255,0.1);
+      border: 1.5px solid rgba(255,255,255,0.15); border-radius: 10px;
+      padding: 11px 14px; color: white; font-size: 16px;
+      font-family: 'Heebo', sans-serif; outline: none; direction: rtl;
+    }
+    #searchOverlayInput::placeholder { color: rgba(255,255,255,0.3); }
+    #searchOverlayResults { flex: 1; overflow-y: auto; }
+    .so-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 13px 16px; border-bottom: 1px solid rgba(255,255,255,0.07);
+      cursor: pointer;
+    }
+    .so-row:active { background: rgba(255,255,255,0.07); }
+    .so-name { font-size: 15px; font-weight: 600; color: white; margin-bottom: 3px; }
+    .so-meta { font-size: 12px; color: rgba(255,255,255,0.4); font-family: monospace; }
+
     .overlay-barcode-label {
       font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.4);
       text-transform: uppercase; letter-spacing: 0.5px;
@@ -348,6 +388,7 @@
         &#128190;
         <span class="pending-badge" id="pendingCount"></span>
       </button>
+      <button class="icon-btn" id="searchBtn">&#128269;</button>
       <button class="icon-btn" id="settingsBtn">&#9881;&#65039;</button>
     </div>
   </div>
@@ -365,11 +406,21 @@
     <div class="overlay-barcode-label">ברקוד</div>
     <div class="overlay-barcode-val" id="overlayBarcodeVal"></div>
     <div class="overlay-status" id="overlayStatus"></div>
+    <div class="overlay-details" id="overlayDetails"></div>
     <div class="overlay-actions">
       <button class="overlay-btn overlay-btn-secondary" id="overlayScanAgain">סרוק שוב</button>
       <button class="overlay-btn overlay-btn-primary"   id="overlayContinue">המשך</button>
     </div>
   </div>
+</div>
+
+<!-- SEARCH OVERLAY -->
+<div id="searchOverlay">
+  <div id="searchOverlayHeader">
+    <input id="searchOverlayInput" type="text" placeholder='חפש מוצר, מק"ט...' autocomplete="off">
+    <button class="icon-btn" id="searchOverlayClose">✕</button>
+  </div>
+  <div id="searchOverlayResults"></div>
 </div>
 
 <!-- PRODUCT SHEET (Step 4a) -->
@@ -765,6 +816,13 @@ function onBarcodeDetected(val) {
   currentBarcode = val;
   var match = products.find(function(p) { return String(p[cols.id]  || '').trim() === val; })
            || products.find(function(p) { return String(p[cols.alt] || '').trim() === val; });
+  // Check previously linked barcodes
+  if (!match) {
+    var linked = pendingBarcodes.find(function(e) { return e.barcode === val && e.resolvedSku; });
+    if (linked) {
+      match = products.find(function(p) { return String(p[cols.id] || '').trim() === linked.resolvedSku; });
+    }
+  }
   currentProduct = match || null;
   showResultOverlay(val, match);
 }
@@ -787,9 +845,21 @@ function showResultOverlay(barcode, product) {
   el('overlayBarcodeVal').textContent = barcode;
   var st = el('overlayStatus');
   st.className = 'overlay-status';
+  var det = el('overlayDetails');
+  det.textContent = '';
   if (product) {
     st.textContent = product[cols.name] || 'נמצא ✓';
     st.classList.add('found');
+    var sku = String(product[cols.id] || '').trim();
+    if (sku) {
+      var skuEl = document.createElement('div'); skuEl.className = 'overlay-detail';
+      skuEl.textContent = 'מק"ט: ' + sku;
+      det.appendChild(skuEl);
+    }
+    var stockEl = document.createElement('div'); stockEl.className = 'overlay-detail';
+    stockEl.textContent = 'מלאי: ';
+    stockEl.appendChild(makeBadge(product[cols.stock]));
+    det.appendChild(stockEl);
   } else {
     st.textContent = 'לא נמצא במלאי';
     st.classList.add('notfound');
@@ -1177,6 +1247,59 @@ function exportPendingCSV() {
     pendingBarcodes = []; savePendingBarcodes(); updatePendingBadge();
   }
 }
+
+// ── Search overlay ────────────────────────────────────────────────────────────
+var searchDebounce;
+
+el('searchBtn').addEventListener('click', function() {
+  scanPaused = true;
+  setScanIndicator(false);
+  el('searchOverlayInput').value = '';
+  el('searchOverlayResults').textContent = '';
+  el('searchOverlay').classList.add('open');
+  setTimeout(function() { el('searchOverlayInput').focus(); }, 80);
+});
+
+el('searchOverlayClose').addEventListener('click', function() {
+  el('searchOverlay').classList.remove('open');
+  resumeScanner();
+});
+
+el('searchOverlayInput').addEventListener('input', function() {
+  var q = el('searchOverlayInput').value.trim();
+  clearTimeout(searchDebounce);
+  var container = el('searchOverlayResults');
+  if (q.length < 2) { container.textContent = ''; return; }
+  searchDebounce = setTimeout(function() {
+    var results = doSearch(q) || [];
+    container.textContent = '';
+    if (!results.length) {
+      var empty = document.createElement('div');
+      empty.style.cssText = 'padding:24px 16px;color:rgba(255,255,255,0.4);text-align:center;font-size:14px';
+      empty.textContent = 'לא נמצאו מוצרים';
+      container.appendChild(empty);
+      return;
+    }
+    results.slice(0, 40).forEach(function(p) {
+      var row = document.createElement('div');
+      row.className = 'so-row';
+      var info = document.createElement('div');
+      var nm = document.createElement('div'); nm.className = 'so-name'; nm.textContent = p[cols.name] || '—';
+      var meta = document.createElement('div'); meta.className = 'so-meta';
+      meta.textContent = (p[cols.id] || '') + (p[cols.alt] ? '  •  ' + p[cols.alt] : '');
+      info.appendChild(nm); info.appendChild(meta);
+      var chev = document.createElement('span'); chev.textContent = '←';
+      chev.style.cssText = 'color:rgba(255,255,255,0.25);font-size:16px;flex-shrink:0';
+      row.appendChild(info); row.appendChild(chev);
+      row.addEventListener('click', function() {
+        el('searchOverlay').classList.remove('open');
+        currentProduct = p;
+        showProductSheet(p);
+      });
+      container.appendChild(row);
+    });
+  }, 150);
+});
 
 // ── Toast & utils ─────────────────────────────────────────────────────────────
 function showToast(msg) {
