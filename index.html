@@ -174,6 +174,9 @@
       font-size: 13px; color: rgba(255,255,255,0.5);
     }
     .overlay-detail .badge { font-size: 12px; }
+    .overlay-price      { font-family: monospace; color: #fff; font-size: 14px; font-weight: 700; }
+    .overlay-price-sale { font-family: monospace; color: #2dd4a8; font-size: 14px; font-weight: 700; }
+    .overlay-price-was  { font-family: monospace; color: rgba(255,255,255,0.35); font-size: 12px; text-decoration: line-through; }
 
     /* ─── SEARCH OVERLAY ─────────────────────────────────── */
     #searchOverlay {
@@ -860,6 +863,25 @@ function showResultOverlay(barcode, product) {
     stockEl.textContent = 'מלאי: ';
     stockEl.appendChild(makeBadge(product[cols.stock]));
     det.appendChild(stockEl);
+    var sd = sku ? scrapeMap[sku] : null;
+    if (sd) {
+      var reg  = String(sd[scrapeCols.price]     || '').trim();
+      var sale = String(sd[scrapeCols.salePrice] || '').trim();
+      if (!sale || sale === reg || sale === '0') sale = '';
+      if (reg || sale) {
+        var priceEl = document.createElement('div'); priceEl.className = 'overlay-detail';
+        priceEl.textContent = 'מחיר: ';
+        if (sale) {
+          var sEl = document.createElement('span'); sEl.className = 'overlay-price-sale'; sEl.textContent = '₪' + sale;
+          priceEl.appendChild(sEl);
+          if (reg) { var wEl = document.createElement('span'); wEl.className = 'overlay-price-was'; wEl.textContent = '₪' + reg; priceEl.appendChild(wEl); }
+        } else {
+          var rEl = document.createElement('span'); rEl.className = 'overlay-price'; rEl.textContent = '₪' + reg;
+          priceEl.appendChild(rEl);
+        }
+        det.appendChild(priceEl);
+      }
+    }
   } else {
     st.textContent = 'לא נמצא במלאי';
     st.classList.add('notfound');
