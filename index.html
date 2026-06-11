@@ -742,19 +742,37 @@ function startScanner() {
     });
 }
 
+function makeStripCanvas() {
+  var vw = video.videoWidth  || 1280;
+  var vh = video.videoHeight || 720;
+  var c = document.createElement('canvas');
+  c.width  = vw;
+  c.height = Math.max(1, Math.round(vh / 20));
+  return c;
+}
+
+function drawStrip(canvas, ctx) {
+  var sy = Math.round((video.videoHeight - canvas.height) / 2);
+  ctx.drawImage(video, 0, sy, video.videoWidth, canvas.height, 0, 0, canvas.width, canvas.height);
+}
+
 function startNativeLoop() {
   var formats = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39'];
   var det;
   try { det = new BarcodeDetector({ formats: formats }); }
   catch(e) { startZXingLoop(); return; }
 
+  var stripCanvas = null;
+  var ctx = null;
   var detecting = false;
   function loop() {
     if (scanPaused) { rafId = null; return; }
     rafId = requestAnimationFrame(loop);
     if (detecting || video.readyState < 2) return;
+    if (!stripCanvas) { stripCanvas = makeStripCanvas(); ctx = stripCanvas.getContext('2d'); }
+    drawStrip(stripCanvas, ctx);
     detecting = true;
-    det.detect(video)
+    det.detect(stripCanvas)
       .then(function(codes) {
         detecting = false;
         if (!scanPaused && codes.length) onBarcodeDetected(codes[0].rawValue);
@@ -766,10 +784,23 @@ function startNativeLoop() {
 
 function startZXingLoop() {
   try {
+    if (zxingReader) { try { zxingReader.reset(); } catch(e) {} }
     zxingReader = new ZXing.BrowserMultiFormatReader(null, 50);
-    zxingReader.decodeFromStream(scanStream, video, function(result) {
-      if (result && !scanPaused) onBarcodeDetected(result.getText());
-    });
+    var stripCanvas = null;
+    var ctx = null;
+    function zxingPoll() {
+      if (scanPaused) return;
+      if (video.readyState >= 2) {
+        if (!stripCanvas) { stripCanvas = makeStripCanvas(); ctx = stripCanvas.getContext('2d'); }
+        drawStrip(stripCanvas, ctx);
+        try {
+          var result = zxingReader.decodeFromCanvas(stripCanvas);
+          if (result && !scanPaused) { onBarcodeDetected(result.getText()); return; }
+        } catch(e) {}
+      }
+      setTimeout(zxingPoll, 50);
+    }
+    zxingPoll();
   } catch(e) {
     showToast('שגיאה בסורק ברקודים');
   }
@@ -800,8 +831,9 @@ function resumeScanner() {
   if (!scanStream) { startScanner(); return; }
   if ('BarcodeDetector' in window) {
     startNativeLoop();
+  } else {
+    startZXingLoop();
   }
-  // ZXing: callback is still running, scanPaused=false re-enables it
 }
 
 function onBarcodeDetected(val) {
