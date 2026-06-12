@@ -296,6 +296,37 @@
     .link-product-sku  { font-size: 12px; color: #9ca3af; font-family: monospace; }
     .link-empty { text-align: center; padding: 32px 0; color: #9ca3af; font-size: 14px; }
 
+    /* OCR label capture */
+    #ocrBtn { margin: 0 0 12px; }
+    #ocrChips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+    #ocrChips:empty { display: none; }
+    .ocr-chip {
+      background: #eff6ff; color: #1d4ed8; border: 1.5px solid #bfdbfe;
+      border-radius: 20px; padding: 6px 14px; font-size: 14px;
+      font-family: monospace; cursor: pointer; direction: ltr;
+    }
+    .ocr-chip:active { background: #dbeafe; }
+    .ocr-status { text-align: center; color: #6b7280; font-size: 13px; padding: 4px 0 12px; }
+    #ocrCaptureBar {
+      display: none; position: fixed; left: 0; right: 0; bottom: 0;
+      z-index: 250; flex-direction: column; align-items: center; gap: 12px;
+      padding: 24px 20px;
+      padding-bottom: max(28px, env(safe-area-inset-bottom, 28px));
+      background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+    }
+    #ocrCaptureBar.show { display: flex; }
+    .ocr-capture-hint { color: white; font-size: 15px; font-weight: 500; text-shadow: 0 1px 6px rgba(0,0,0,0.7); }
+    #ocrShutterBtn {
+      background: #00d4aa; color: #0f2438; border: none; border-radius: 50%;
+      width: 72px; height: 72px; font-size: 30px; cursor: pointer;
+      box-shadow: 0 4px 18px rgba(0,212,170,0.45);
+    }
+    #ocrShutterBtn:active { transform: scale(0.93); }
+    #ocrCancelBtn {
+      background: none; border: none; color: rgba(255,255,255,0.75);
+      font-size: 15px; cursor: pointer; padding: 6px 14px;
+    }
+
     /* Link confirm panel */
     #linkConfirm {
       display: none; background: #f0fdf4; border: 1.5px solid #86efac;
@@ -455,6 +486,10 @@
       </div>
     </div>
 
+    <button class="btn btn-secondary" id="ocrBtn">&#128247; צלם תווית לזיהוי קוד</button>
+    <div class="ocr-status" id="ocrStatus" style="display:none"></div>
+    <div id="ocrChips"></div>
+
     <div class="link-search-wrap" id="linkSearchWrap">
       <span class="link-search-icon">&#128269;</span>
       <input class="link-search-input" id="linkSearchInput"
@@ -469,6 +504,13 @@
       <button class="btn btn-ghost" id="linkCancelBtn" style="margin-top:8px">ביטול</button>
     </div>
   </div>
+</div>
+
+<!-- OCR CAPTURE BAR (shown over live camera while link sheet is hidden) -->
+<div id="ocrCaptureBar">
+  <div class="ocr-capture-hint">כוון את המצלמה לתווית המוצר ולחץ לצילום</div>
+  <button id="ocrShutterBtn">&#128247;</button>
+  <button id="ocrCancelBtn">ביטול</button>
 </div>
 
 <!-- SETTINGS MODAL -->
@@ -1000,10 +1042,11 @@ var linkDebounce;
 function showLinkSheet(barcode) {
   el('linkSheetBarcode').textContent = barcode;
   el('linkSearchInput').value = '';
+  el('ocrChips').textContent = '';
+  setOcrStatus(null);
   hideLinkConfirm();
   renderLinkEmpty('הקלד שם מוצר או מק"ט לחיפוש');
   el('linkSheetBackdrop').classList.add('open');
-  setTimeout(function() { el('linkSearchInput').focus(); }, 300);
 }
 
 function hideLinkConfirm() {
@@ -1011,6 +1054,8 @@ function hideLinkConfirm() {
   el('linkSearchWrap').style.display = '';
   el('linkResults').style.display = '';
   el('linkFooter').style.display = '';
+  el('ocrBtn').style.display = '';
+  el('ocrChips').style.display = '';
   pendingLinkProduct = null;
 }
 
@@ -1023,6 +1068,8 @@ function showLinkConfirm(p) {
   el('linkSearchWrap').style.display = 'none';
   el('linkResults').style.display    = 'none';
   el('linkFooter').style.display     = 'none';
+  el('ocrBtn').style.display         = 'none';
+  el('ocrChips').style.display       = 'none';
 }
 
 el('lcConfirmBtn').addEventListener('click', function() {
@@ -1048,29 +1095,127 @@ function renderLinkEmpty(msg) {
   c.appendChild(d);
 }
 
+function runLinkSearch(q) {
+  if (q.length < 2) { renderLinkEmpty('הקלד שם מוצר או מק"ט לחיפוש'); return; }
+  var results = doSearch(q) || [];
+  var c = el('linkResults');
+  c.textContent = '';
+  if (!results.length) { renderLinkEmpty('לא נמצאו מוצרים'); return; }
+  results.slice(0, 20).forEach(function(p) {
+    var row = document.createElement('div');
+    row.className = 'link-product-row';
+    var info = document.createElement('div');
+    var nm = document.createElement('div'); nm.className = 'link-product-name'; nm.textContent = p[cols.name] || '—';
+    var sk = document.createElement('div'); sk.className = 'link-product-sku';  sk.textContent = p[cols.id] || '';
+    info.appendChild(nm); info.appendChild(sk);
+    var chev = document.createElement('span');
+    chev.textContent = '←'; chev.style.cssText = 'color:#9ca3af;font-size:16px;flex-shrink:0';
+    row.appendChild(info); row.appendChild(chev);
+    row.addEventListener('click', function() { showLinkConfirm(p); });
+    c.appendChild(row);
+  });
+}
+
 el('linkSearchInput').addEventListener('input', function() {
   var q = el('linkSearchInput').value.trim();
   clearTimeout(linkDebounce);
   if (q.length < 2) { renderLinkEmpty('הקלד שם מוצר או מק"ט לחיפוש'); return; }
-  linkDebounce = setTimeout(function() {
-    var results = doSearch(q) || [];
-    var c = el('linkResults');
-    c.textContent = '';
-    if (!results.length) { renderLinkEmpty('לא נמצאו מוצרים'); return; }
-    results.slice(0, 20).forEach(function(p) {
-      var row = document.createElement('div');
-      row.className = 'link-product-row';
-      var info = document.createElement('div');
-      var nm = document.createElement('div'); nm.className = 'link-product-name'; nm.textContent = p[cols.name] || '—';
-      var sk = document.createElement('div'); sk.className = 'link-product-sku';  sk.textContent = p[cols.id] || '';
-      info.appendChild(nm); info.appendChild(sk);
-      var chev = document.createElement('span');
-      chev.textContent = '←'; chev.style.cssText = 'color:#9ca3af;font-size:16px;flex-shrink:0';
-      row.appendChild(info); row.appendChild(chev);
-      row.addEventListener('click', function() { showLinkConfirm(p); });
-      c.appendChild(row);
+  linkDebounce = setTimeout(function() { runLinkSearch(q); }, 150);
+});
+
+// ── OCR label capture ─────────────────────────────────────────────────────────
+var tesseractLoading = null;
+
+function loadTesseract() {
+  if (window.Tesseract) return Promise.resolve();
+  if (tesseractLoading) return tesseractLoading;
+  tesseractLoading = new Promise(function(resolve, reject) {
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+    s.onload = function() { resolve(); };
+    s.onerror = function() { tesseractLoading = null; reject(new Error('tesseract load failed')); };
+    document.head.appendChild(s);
+  });
+  return tesseractLoading;
+}
+
+function captureFrameCanvas() {
+  var c = document.createElement('canvas');
+  c.width  = video.videoWidth  || 1280;
+  c.height = video.videoHeight || 720;
+  c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
+  return c;
+}
+
+function setOcrStatus(msg) {
+  var s = el('ocrStatus');
+  if (msg) { s.style.display = ''; s.textContent = msg; }
+  else { s.style.display = 'none'; s.textContent = ''; }
+}
+
+// Keep tokens that look like item codes: ≥4 alphanumeric chars incl. a digit
+function extractCodeTokens(text) {
+  var raw = String(text || '').split(/[\s,;|]+/);
+  var seen = {}, out = [];
+  raw.forEach(function(t) {
+    t = t.replace(/^[^0-9A-Za-z]+/, '').replace(/[^0-9A-Za-z]+$/, '');
+    var n = normCode(t);
+    if (n.length < 4 || !/\d/.test(n) || seen[n]) return;
+    seen[n] = true;
+    out.push(t);
+  });
+  out.sort(function(a, b) { return normCode(b).length - normCode(a).length; });
+  return out.slice(0, 12);
+}
+
+function renderOcrChips(tokens) {
+  var c = el('ocrChips');
+  c.textContent = '';
+  tokens.forEach(function(t) {
+    var chip = document.createElement('button');
+    chip.className = 'ocr-chip';
+    chip.textContent = t;
+    chip.addEventListener('click', function() {
+      el('linkSearchInput').value = t;
+      runLinkSearch(t);
     });
-  }, 150);
+    c.appendChild(chip);
+  });
+}
+
+el('ocrBtn').addEventListener('click', function() {
+  el('linkSheetBackdrop').classList.remove('open');
+  el('ocrCaptureBar').classList.add('show');
+});
+
+el('ocrCancelBtn').addEventListener('click', function() {
+  el('ocrCaptureBar').classList.remove('show');
+  el('linkSheetBackdrop').classList.add('open');
+});
+
+el('ocrShutterBtn').addEventListener('click', function() {
+  var canvas = captureFrameCanvas();
+  el('ocrCaptureBar').classList.remove('show');
+  el('linkSheetBackdrop').classList.add('open');
+  el('ocrChips').textContent = '';
+  setOcrStatus('טוען מנוע זיהוי...');
+  loadTesseract()
+    .then(function() {
+      setOcrStatus('מזהה טקסט מהתווית...');
+      return Tesseract.recognize(canvas, 'eng');
+    })
+    .then(function(out) {
+      var tokens = extractCodeTokens(out && out.data ? out.data.text : '');
+      if (!tokens.length) {
+        setOcrStatus('לא זוהו קודים — נסה שוב או הקלד ידנית');
+        return;
+      }
+      setOcrStatus('בחר את הקוד מהתווית:');
+      renderOcrChips(tokens);
+    })
+    .catch(function() {
+      setOcrStatus('הזיהוי נכשל — נסה שוב או הקלד ידנית');
+    });
 });
 
 el('linkSkipBtn').addEventListener('click', function() {
@@ -1092,13 +1237,22 @@ el('linkSheetBackdrop').addEventListener('click', function(e) {
 });
 
 // ── Search ────────────────────────────────────────────────────────────────────
+// Alphanumeric-only uppercase, so "48230 7016" / "482307016" match "48230-7016"
+function normCode(v) { return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+
 function doSearch(q) {
   if (!q || q.length < 2) return null;
   var lq = q.toLowerCase();
+  var nq = normCode(q);
   return products.filter(function(p) {
-    return norm(p[cols.id]).indexOf(lq) >= 0 ||
-           norm(p[cols.name]).indexOf(lq) >= 0 ||
-           norm(p[cols.alt]).indexOf(lq) >= 0;
+    if (norm(p[cols.id]).indexOf(lq) >= 0 ||
+        norm(p[cols.name]).indexOf(lq) >= 0 ||
+        norm(p[cols.alt]).indexOf(lq) >= 0) return true;
+    if (nq.length >= 4) {
+      return normCode(p[cols.id]).indexOf(nq) >= 0 ||
+             normCode(p[cols.alt]).indexOf(nq) >= 0;
+    }
+    return false;
   });
 }
 
