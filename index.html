@@ -617,8 +617,22 @@ function el(id) { return document.getElementById(id); }
 var video     = el('video');
 var loadingEl = el('loading');
 
+// ── Kupa mode ─────────────────────────────────────────────────────────────────
+// Launched from the Kupa app (?kupa=1&return=<url>) to capture ONE barcode and hand it
+// back via <return>#scan=<barcode>. We only need the camera here — no product CSV.
+var KUPA_PARAMS = new URLSearchParams(location.search);
+var KUPA_RETURN = KUPA_PARAMS.get('kupa') ? (KUPA_PARAMS.get('return') || '') : null;
+function showKupaCancel() {
+  var b = document.createElement('button');
+  b.textContent = '→ חזרה לקופה';
+  b.setAttribute('style', 'position:fixed;top:14px;right:14px;z-index:9999;background:#0d9488;color:#fff;border:none;padding:11px 18px;border-radius:11px;font:700 15px Heebo,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.25)');
+  b.onclick = function() { window.location.href = KUPA_RETURN; };
+  document.body.appendChild(b);
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 (function boot() {
+  if (KUPA_RETURN) { showKupaCancel(); showScanner(); return; } // skip setup; just scan
   var sc = localStorage.getItem(LS_COLS);
   if (sc) { try { cols = Object.assign({}, DEFAULT_COLS, JSON.parse(sc)); } catch(e) {} }
 
@@ -880,6 +894,7 @@ function resumeScanner() {
 
 function onBarcodeDetected(val) {
   if (scanPaused) return;
+  if (KUPA_RETURN) { scanPaused = true; window.location.href = KUPA_RETURN + '#scan=' + encodeURIComponent(val); return; }
   scanPaused = true;
   setScanIndicator(false);
   if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
