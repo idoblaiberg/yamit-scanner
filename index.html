@@ -153,6 +153,12 @@
       100% { filter: none; }
     }
     .frame-box.flash { animation: lineFlash 0.4s ease forwards; }
+    /* Paused: laser goes gray and stops pulsing so it's obvious scanning is off */
+    .frame-box.paused::before {
+      animation: none; background: rgba(255,255,255,0.3); box-shadow: none;
+    }
+    .frame-box.paused::after,
+    .frame-box.paused > i { background: rgba(255,255,255,0.3); }
 
     /* Result overlay */
     #resultOverlay {
@@ -785,12 +791,7 @@ function startScanner() {
       video.addEventListener('playing', function onPlay() {
         video.removeEventListener('playing', onPlay);
         scanPaused = false;
-        setScanIndicator(true);
-        if ('BarcodeDetector' in window) {
-          startNativeLoop();
-        } else {
-          startZXingLoop();
-        }
+        startDetection();
       });
     })
     .catch(function() {
@@ -812,15 +813,30 @@ function drawStrip(canvas, ctx) {
   ctx.drawImage(video, 0, sy, video.videoWidth, canvas.height, 0, 0, canvas.width, canvas.height);
 }
 
+// Which decode engine is active: 'native' (BarcodeDetector) or 'zxing' (fallback).
+// Sticky: once we fall back to ZXing we stay there for the session.
+var scanEngine = null;
+
+function startDetection() {
+  if (scanEngine !== 'zxing' && 'BarcodeDetector' in window) {
+    startNativeLoop();
+  } else {
+    startZXingLoop();
+  }
+}
+
 function startNativeLoop() {
   var formats = ['ean_13','ean_8','upc_a','upc_e','code_128','code_39'];
   var det;
   try { det = new BarcodeDetector({ formats: formats }); }
   catch(e) { startZXingLoop(); return; }
+  scanEngine = 'native';
+  setScanIndicator(true);
 
   var stripCanvas = null;
   var ctx = null;
   var detecting = false;
+  var errors = 0;
   function loop() {
     if (scanPaused) { rafId = null; return; }
     rafId = requestAnimationFrame(loop);
@@ -831,28 +847,59 @@ function startNativeLoop() {
     det.detect(stripCanvas)
       .then(function(codes) {
         detecting = false;
+        errors = 0;
         if (!scanPaused && codes.length) onBarcodeDetected(codes[0].rawValue);
       })
-      .catch(function() { detecting = false; });
+      .catch(function() {
+        detecting = false;
+        errors++;
+        // BarcodeDetector exists but keeps failing (e.g. partial implementations) — switch engines
+        if (errors >= 10) {
+          if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+          startZXingLoop();
+        }
+      });
   }
   rafId = requestAnimationFrame(loop);
 }
 
 function startZXingLoop() {
   try {
-    if (zxingReader) { try { zxingReader.reset(); } catch(e) {} }
-    zxingReader = new ZXing.BrowserMultiFormatReader(null, 50);
+    scanEngine = 'zxing';
+    if (!zxingReader) {
+      var hints = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+        ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.UPC_A,  ZXing.BarcodeFormat.UPC_E,
+        ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39
+      ]);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      zxingReader = new ZXing.MultiFormatReader();
+      zxingReader.setHints(hints);
+    }
+    setScanIndicator(true);
+
     var stripCanvas = null;
     var ctx = null;
+    var hardErrors = 0;
     function zxingPoll() {
       if (scanPaused) return;
       if (video.readyState >= 2) {
         if (!stripCanvas) { stripCanvas = makeStripCanvas(); ctx = stripCanvas.getContext('2d'); }
         drawStrip(stripCanvas, ctx);
         try {
-          var result = zxingReader.decodeFromCanvas(stripCanvas);
+          var source = new ZXing.HTMLCanvasElementLuminanceSource(stripCanvas);
+          var bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(source));
+          var result = zxingReader.decodeWithState(bitmap);
           if (result && !scanPaused) { onBarcodeDetected(result.getText()); return; }
-        } catch(e) {}
+        } catch(e) {
+          // NotFoundException = no barcode in this frame (normal). Anything else is a real bug —
+          // surface it instead of spinning silently.
+          if (!(window.ZXing && e instanceof ZXing.NotFoundException)) {
+            hardErrors++;
+            if (hardErrors === 5) showToast('שגיאת סריקה: ' + (e && (e.message || e.name) || 'unknown'));
+          }
+        }
       }
       setTimeout(zxingPoll, 50);
     }
@@ -885,11 +932,7 @@ function resumeScanner() {
   scanPaused = false;
   setScanIndicator(true);
   if (!scanStream) { startScanner(); return; }
-  if ('BarcodeDetector' in window) {
-    startNativeLoop();
-  } else {
-    startZXingLoop();
-  }
+  startDetection();
 }
 
 function onBarcodeDetected(val) {
@@ -922,12 +965,15 @@ function onBarcodeDetected(val) {
 function setScanIndicator(active) {
   var s = el('scanStatus');
   var t = el('scanStatusText');
+  var fb = el('frameBox');
   if (!s) return;
   if (active) {
     s.classList.remove('paused');
-    if (t) t.textContent = 'סורק...';
+    if (fb) fb.classList.remove('paused');
+    if (t) t.textContent = scanEngine === 'zxing' ? 'סורק... (ZXing)' : 'סורק...';
   } else {
     s.classList.add('paused');
+    if (fb) fb.classList.add('paused');
     if (t) t.textContent = 'מושהה';
   }
 }
