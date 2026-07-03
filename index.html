@@ -808,8 +808,30 @@ function makeStripCanvas() {
   return c;
 }
 
+// Map the laser line's on-screen Y to video pixel Y. The video uses object-fit: cover,
+// and #scannerFrame centers laser+hint+status as a group, so the line is NOT at the
+// video's vertical center — the decode strip must follow the line the user aligns to.
+function laserLineVideoY() {
+  var vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return 0;
+  var fb = el('frameBox');
+  var rect = video.getBoundingClientRect();
+  if (!fb || !rect.height) return vh / 2;
+  var fbr = fb.getBoundingClientRect();
+  var lineY = fbr.top + fbr.height / 2;
+  var scale = Math.max(rect.width / vw, rect.height / vh);
+  var cropTop = (vh * scale - rect.height) / 2;
+  var videoY = (lineY - rect.top + cropTop) / scale;
+  if (videoY < 0) videoY = 0;
+  if (videoY > vh) videoY = vh;
+  return videoY;
+}
+
 function drawStrip(canvas, ctx) {
-  var sy = Math.round((video.videoHeight - canvas.height) / 2);
+  var sy = Math.round(laserLineVideoY() - canvas.height / 2);
+  var maxSy = video.videoHeight - canvas.height;
+  if (sy < 0) sy = 0;
+  if (sy > maxSy) sy = maxSy;
   ctx.drawImage(video, 0, sy, video.videoWidth, canvas.height, 0, 0, canvas.width, canvas.height);
 }
 
