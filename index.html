@@ -838,6 +838,7 @@ function drawStrip(canvas, ctx) {
 // Which decode engine is active: 'native' (BarcodeDetector) or 'zxing' (fallback).
 // Sticky: once we fall back to ZXing we stay there for the session.
 var scanEngine = null;
+var zxingLoopId = 0;
 
 function startDetection() {
   if (scanEngine !== 'zxing' && 'BarcodeDetector' in window) {
@@ -895,7 +896,11 @@ function startZXingLoop() {
         ZXing.BarcodeFormat.UPC_A,  ZXing.BarcodeFormat.UPC_E,
         ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39
       ]);
-      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      // No TRY_HARDER: it scans many extra rows plus a transposed copy — ~4x slower
+      // per frame on this bundle (benchmarked) — and adds nothing on a thin strip
+      // whose rows are near-identical. Upside-down codes still decode (each row is
+      // also tried reversed); only vertical barcodes are lost, which the laser-line
+      // UX doesn't support anyway.
       zxingReader = new ZXing.MultiFormatReader();
       zxingReader.setHints(hints);
     }
@@ -904,8 +909,8 @@ function startZXingLoop() {
     var stripCanvas = null;
     var ctx = null;
     var hardErrors = 0;
-    function zxingPoll() {
-      if (scanPaused) return;
+    function decodeFrame() {
+      if (scanPaused) return true;
       if (video.readyState >= 2) {
         if (!stripCanvas) { stripCanvas = makeStripCanvas(); ctx = stripCanvas.getContext('2d'); }
         drawStrip(stripCanvas, ctx);
@@ -913,7 +918,7 @@ function startZXingLoop() {
           var source = new ZXing.HTMLCanvasElementLuminanceSource(stripCanvas);
           var bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(source));
           var result = zxingReader.decodeWithState(bitmap);
-          if (result && !scanPaused) { onBarcodeDetected(result.getText()); return; }
+          if (result && !scanPaused) { onBarcodeDetected(result.getText()); return true; }
         } catch(e) {
           // NotFoundException = no barcode in this frame (normal). Anything else is a real bug —
           // surface it instead of spinning silently.
@@ -923,9 +928,25 @@ function startZXingLoop() {
           }
         }
       }
-      setTimeout(zxingPoll, 50);
+      return false;
     }
-    zxingPoll();
+    // Decode once per camera frame when the browser supports it (no wasted decodes
+    // of duplicate frames, no idle gap); otherwise poll every 33ms. The loop id
+    // kills stale callbacks so a fast pause/resume can't leave two chains running.
+    var myLoop = ++zxingLoopId;
+    if (video.requestVideoFrameCallback) {
+      var onFrame = function() {
+        if (myLoop !== zxingLoopId) return;
+        if (!decodeFrame()) video.requestVideoFrameCallback(onFrame);
+      };
+      video.requestVideoFrameCallback(onFrame);
+    } else {
+      var zxingPoll = function() {
+        if (myLoop !== zxingLoopId) return;
+        if (!decodeFrame()) setTimeout(zxingPoll, 33);
+      };
+      zxingPoll();
+    }
   } catch(e) {
     showToast('שגיאה בסורק ברקודים');
   }
@@ -933,6 +954,7 @@ function startZXingLoop() {
 
 function stopScanner() {
   scanPaused = true;
+  zxingLoopId++;
   setScanIndicator(false);
   if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
   zxingReader = null;
